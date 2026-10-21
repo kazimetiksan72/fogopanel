@@ -68,7 +68,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         visitCount++;
         if (visitCount > 1000) return NextResponse.json({ error: 'Çok fazla gezilecek yer eklendi.' }, { status: 400 });
       }
-      if (visits.length) dayPlans.push({ date, visits: visits.sort((a, b) => a.startTime.localeCompare(b.startTime)) });
+      if (visits.length) dayPlans.push({ date, visits });
     }
     dayPlans.sort((a, b) => a.date.localeCompare(b.date));
   }

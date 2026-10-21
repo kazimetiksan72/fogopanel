@@ -1,9 +1,11 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useMemo, useState } from 'react';
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useRouter } from 'next/navigation';
 import AgencyCombobox from '../../agency-combobox';
-import PlaceSearch from './place-search';
+import SortableVisitRow from './sortable-visit-row';
 
 type AgencyOption = { id: string; name: string };
 type TourFields = { name: string; agencyId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
@@ -43,6 +45,10 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
   const activeDay = Math.min(selectedDay, Math.max(days.length - 1, 0));
   const activeDate = days[activeDay]?.toISOString().slice(0, 10);
   const activeVisits = dayPlans.find((plan) => plan.date === activeDate)?.visits || [];
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   function update<K extends keyof TourFields>(key: K, value: TourFields[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -133,11 +139,25 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
           <span className="tour-day-panel-count">{activeDay + 1}. GÜN / {days.length} GÜN</span>
           <h3>{dateFormatter.format(days[activeDay])}</h3>
           <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => updateVisits(activeDate!, (visits) => [...visits, { key: crypto.randomUUID(), placeId: '', startTime: '' }])}>＋ Yer Ekle</button></div>
-          {activeVisits.length ? <div className="tour-visits-list">{activeVisits.map((visit, index) => <div className="tour-visit-row" key={visit.key}>
-            <div className="field tour-visit-place"><label htmlFor={`visit-place-${visit.key}`}>{index + 1}. Gezilecek Yer</label><PlaceSearch inputId={`visit-place-${visit.key}`} value={visit.placeId} onChange={(placeId) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeId } : item))} /></div>
-            <div className="field tour-visit-time"><label htmlFor={`visit-time-${visit.key}`}>Başlangıç Saati</label><input id={`visit-time-${visit.key}`} type="time" value={visit.startTime} onChange={(event) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, startTime: event.target.value } : item))} required /></div>
-            <button type="button" className="tour-visit-remove" aria-label={`${index + 1}. gezilecek yeri kaldır`} title="Kaldır" onClick={() => updateVisits(activeDate!, (visits) => visits.filter((item) => item.key !== visit.key))}>×</button>
-          </div>)}</div> : <p className="tour-visits-empty">Bu güne henüz gezilecek yer eklenmedi.</p>}
+          {activeVisits.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
+            if (!activeDate || !over || active.id === over.id) return;
+            updateVisits(activeDate, (visits) => {
+              const from = visits.findIndex((visit) => visit.key === active.id);
+              const to = visits.findIndex((visit) => visit.key === over.id);
+              return from < 0 || to < 0 ? visits : arrayMove(visits, from, to);
+            });
+          }}>
+            <SortableContext items={activeVisits.map((visit) => visit.key)} strategy={verticalListSortingStrategy}>
+              <div className="tour-visits-list">{activeVisits.map((visit, index) => <SortableVisitRow
+                key={visit.key}
+                visit={visit}
+                index={index}
+                onPlaceChange={(placeId) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeId } : item))}
+                onTimeChange={(startTime) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, startTime } : item))}
+                onRemove={() => updateVisits(activeDate!, (visits) => visits.filter((item) => item.key !== visit.key))}
+              />)}</div>
+            </SortableContext>
+          </DndContext> : <p className="tour-visits-empty">Bu güne henüz gezilecek yer eklenmedi.</p>}
         </div>
       </> : <p className="tour-days-empty">Günleri görmek için geçerli bir başlangıç ve bitiş tarihi seçin.</p>}
     </section>
