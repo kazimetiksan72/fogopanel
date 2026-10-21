@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     url.searchParams.set('regionCode', 'TR');
     if (sessionToken) url.searchParams.set('sessionToken', sessionToken);
     const response = await fetch(url, {
-      headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': 'id,displayName,formattedAddress,attributions,photos' },
+      headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': 'id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,attributions,photos' },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
@@ -44,6 +44,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       id?: string;
       displayName?: { text?: string };
       formattedAddress?: string;
+      nationalPhoneNumber?: string;
+      internationalPhoneNumber?: string;
       attributions?: { provider?: string; providerUri?: string }[];
       photos?: {
         name?: string;
@@ -68,7 +70,15 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           photoUri: googleUrl(author.photoUri),
         })),
       }));
-    return NextResponse.json({ id: data.id, name: data.displayName.text, address: data.formattedAddress || '', attributions, photos }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({
+      id: data.id,
+      name: data.displayName.text,
+      address: data.formattedAddress || '',
+      phone: data.nationalPhoneNumber || data.internationalPhoneNumber || '',
+      phoneUri: data.internationalPhoneNumber || data.nationalPhoneNumber || '',
+      attributions,
+      photos,
+    }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Google Place Details bağlantı hatası:', error);
     return NextResponse.json({ error: 'Yer bilgisi alınamadı.' }, { status: 502 });

@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import PlacePhotoCarousel, { type PlacePhoto } from './place-photo-carousel';
 
-type Place = { id: string; name: string; address: string; attributions?: { provider: string; providerUri: string }[]; photos?: PlacePhoto[] };
+type Place = { id: string; name: string; address: string; phone?: string; phoneUri?: string; attributions?: { provider: string; providerUri: string }[]; photos?: PlacePhoto[] };
 
 export default function PlaceSearch({ value, onChange, inputId }: { value: string; onChange: (placeId: string) => void; inputId: string }) {
   const listId = useId();
@@ -145,10 +145,14 @@ export default function PlaceSearch({ value, onChange, inputId }: { value: strin
       ><strong>{place.name}</strong>{place.address && <span>{place.address}</span>}</button>)}
       <span className="google-maps-attribution" translate="no">Google Maps</span>
     </div>}
-    {selectedPlace && !open && <div className="place-selected-address"><span>{selectedPlace.address}</span><span className="google-maps-attribution" translate="no">Google Maps</span>
-      {selectedPlace.attributions?.map((item, index) => item.providerUri
-        ? <a key={`${item.provider}-${index}`} href={item.providerUri} target="_blank" rel="noopener noreferrer">{item.provider}</a>
-        : <span key={`${item.provider}-${index}`}>{item.provider}</span>)}
+    {selectedPlace && !open && <div className="place-details">
+      {selectedPlace.address && <div className="place-detail-row"><span>Adres</span><p>{selectedPlace.address}</p></div>}
+      {selectedPlace.phone && <div className="place-detail-row"><span>Telefon</span><a href={`tel:${(selectedPlace.phoneUri || selectedPlace.phone).replace(/[^+\d]/g, '')}`}>{selectedPlace.phone}</a></div>}
+      <div className="place-details-attribution"><span className="google-maps-attribution" translate="no">Google Maps</span>
+        {selectedPlace.attributions?.map((item, index) => item.providerUri
+          ? <a key={`${item.provider}-${index}`} href={item.providerUri} target="_blank" rel="noopener noreferrer">{item.provider}</a>
+          : <span key={`${item.provider}-${index}`}>{item.provider}</span>)}
+      </div>
     </div>}
     {selectedPlace && !open && <PlacePhotoCarousel key={selectedPlace.id} photos={selectedPlace.photos || []} placeName={selectedPlace.name} />}
   </div>;
