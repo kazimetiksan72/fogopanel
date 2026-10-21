@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
-import { ObjectId } from 'mongodb';
+import { Filter, ObjectId } from 'mongodb';
 import { getDatabase } from '@/lib/mongodb';
 import { getViewer } from '@/lib/viewer';
 import { SYSTEM_ADMIN_EMAIL } from '@/lib/viewer';
+import { LIST_PAGE_SIZE, pageForTotal, readListQuery, searchTerms, type ListSearchParams } from '@/lib/list-query';
+import { ListPagination, ListSearch } from '../list-controls';
 import AddUserButton from '../user-form';
 import UserEditButton from '../user-edit-button';
 
@@ -19,25 +21,34 @@ type AdminUser = {
 
 type Agency = { name: string };
 
-export default async function UsersPage() {
+export default async function UsersPage({ searchParams }: { searchParams: ListSearchParams }) {
   const viewer = await getViewer();
   if (!viewer) redirect('/');
   if (!viewer.isAdmin && !viewer.agencyId) redirect('/dashboard/profile');
+  const { query, requestedPage } = readListQuery(await searchParams);
   const db = await getDatabase();
-  const users = await db.collection<AdminUser>('admins')
-    .find(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! }, { projection: { email: 1, firstName: 1, lastName: 1, agencyId: 1, active: 1, createdAt: 1 } })
-    .sort({ createdAt: -1, email: 1 })
-    .toArray();
   const agencies = await db.collection<Agency>('agencies')
     .find(viewer.isAdmin ? {} : { _id: viewer.agencyId! }, { projection: { name: 1 } })
     .sort({ name: 1 })
     .toArray();
   const agencyOptions = agencies.map((agency) => ({ id: agency._id.toString(), name: agency.name }));
   const agencyNames = new Map(agencyOptions.map((agency) => [agency.id, agency.name]));
+  const filter: Filter<AdminUser> = viewer.isAdmin ? {} : { agencyId: viewer.agencyId! };
+  if (query) filter.$and = searchTerms(query).map((term) => ({ $or: [
+    { firstName: term }, { lastName: term }, { email: term },
+    { agencyId: { $in: agencies.filter((agency) => term.test(agency.name)).map((agency) => agency._id) } },
+  ] }));
+  const usersCollection = db.collection<AdminUser>('admins');
+  const total = await usersCollection.countDocuments(filter);
+  const page = pageForTotal(requestedPage, total);
+  const users = await usersCollection.find(filter, { projection: { email: 1, firstName: 1, lastName: 1, agencyId: 1, active: 1, createdAt: 1 } })
+    .sort({ createdAt: -1, email: 1, _id: -1 })
+    .skip((page - 1) * LIST_PAGE_SIZE).limit(LIST_PAGE_SIZE).toArray();
 
   return (
     <div className="users-page">
       <AddUserButton agencies={agencyOptions} lockedAgencyId={viewer.agencyId?.toString()} />
+      <ListSearch path="/dashboard/users" query={query} placeholder="Kullanıcı ara" total={total} />
       <section className="users-card" aria-label="Kullanıcı listesi">
         {users.length ? (
           <div className="users-table-wrap">
@@ -54,7 +65,8 @@ export default async function UsersPage() {
               })}</tbody>
             </table>
           </div>
-        ) : <div className="users-empty"><span>◎</span><h3>Henüz kullanıcı yok</h3><p>İlk kullanıcıyı eklemek için sağ üstteki butonu kullanın.</p></div>}
+        ) : <div className="users-empty"><span>◎</span><h3>{query ? 'Sonuç bulunamadı' : 'Henüz kullanıcı yok'}</h3><p>{query ? 'Arama terimini değiştirip tekrar deneyin.' : 'İlk kullanıcıyı eklemek için sağ üstteki butonu kullanın.'}</p></div>}
+        <ListPagination path="/dashboard/users" query={query} page={page} total={total} />
       </section>
     </div>
   );

@@ -25,6 +25,22 @@
 .dashboard-stat-label { color: #69727e; font-size: 14px; font-weight: 700; }
 .dashboard-stat-value { color: #20252d; font-size: 42px; line-height: 1; letter-spacing: -.05em; }
 .users-page { max-width: 1260px; margin: 0 auto; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.list-search-bar { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.list-search-form { display: flex; align-items: center; gap: 8px; width: min(100%, 520px); }
+.list-search-form input { width: 100%; min-width: 0; height: 42px; padding: 0 14px; border: 1px solid #e3e6eb; border-radius: 9px; outline: none; background: #fff; color: #303944; font: inherit; font-size: 13px; }
+.list-search-form input:focus { border-color: #d64335; box-shadow: 0 0 0 3px #d6433520; }
+.list-search-form button { flex: none; height: 42px; padding: 0 17px; border: 1px solid #d64335; border-radius: 9px; background: #d64335; color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.list-search-form button:hover { background: #bd3026; }
+.list-search-clear { flex: none; padding: 8px 2px; color: #69727e; font-size: 12px; font-weight: 700; text-decoration: none; }
+.list-search-clear:hover { color: #c83f31; }
+.list-search-count { flex: none; color: #8b939d; font-size: 12px; font-weight: 700; }
+.list-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 15px 24px; border-top: 1px solid #eef0f2; color: #7b8490; font-size: 12px; }
+.list-pagination-links { display: flex; align-items: center; gap: 5px; }
+.list-pagination-links a, .list-pagination-links .disabled { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 5px; border: 1px solid #e7e9ed; border-radius: 7px; color: #596473; font-size: 12px; font-weight: 700; text-decoration: none; }
+.list-pagination-links a:hover, .list-pagination-links a:focus-visible { border-color: #eab6af; background: #fff7f5; color: #c83f31; }
+.list-pagination-links a.active { border-color: #d64335; background: #fff2ef; color: #c83f31; }
+.list-pagination-links .disabled { color: #c8cdd4; }
 .add-user-button, .save-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; background: #d64335; color: #fff; border: 1px solid #d64335; border-radius: 9px; min-height: 44px; padding: 0 18px; font-size: 13px; font-weight: 700; white-space: nowrap; }
 .add-user-button:hover, .save-button:hover { background: #bd3026; border-color: #bd3026; }
 .add-user-button:disabled { opacity: .55; cursor: not-allowed; }
@@ -280,6 +296,9 @@
   .admin-main { padding: 20px 20px 60px; }
 }
 @media (max-width: 550px) {
+  .list-search-bar { align-items: flex-start; flex-direction: column; }
+  .list-search-form { width: 100%; }
+  .list-pagination { padding: 14px 16px; }
   .tour-edit-card-heading, .tour-days-heading { padding: 20px; }
   .tour-edit-fields, .tour-day-panel { padding: 22px 20px; }
   .tour-visit-row { grid-template-columns: 34px minmax(0, 1fr) 34px 34px; gap: 9px; }

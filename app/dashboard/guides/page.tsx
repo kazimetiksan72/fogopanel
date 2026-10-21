@@ -1,8 +1,10 @@
 import { redirect } from 'next/navigation';
-import { ObjectId } from 'mongodb';
+import { Filter, ObjectId } from 'mongodb';
 import { getDatabase } from '@/lib/mongodb';
 import { getViewer } from '@/lib/viewer';
 import { buildGuideVCard } from '@/lib/guide-vcard';
+import { LIST_PAGE_SIZE, pageForTotal, readListQuery, searchTerms, type ListSearchParams } from '@/lib/list-query';
+import { ListPagination, ListSearch } from '../list-controls';
 import GuideForm from './guide-form';
 import GuideEditButton from './guide-edit-button';
 import GuideCardButton from './guide-card-button';
@@ -19,19 +21,27 @@ type Guide = {
   updatedAt?: Date;
 };
 
-export default async function GuidesPage() {
+export default async function GuidesPage({ searchParams }: { searchParams: ListSearchParams }) {
   const viewer = await getViewer();
   if (!viewer) redirect('/');
   if (!viewer.isAdmin && !viewer.agencyId) redirect('/dashboard/profile');
+  const { query, requestedPage } = readListQuery(await searchParams);
 
   const db = await getDatabase();
-  const guides = await db.collection<Guide>('guides')
-    .find(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! })
-    .sort({ createdAt: -1, lastName: 1 })
-    .toArray();
+  const filter: Filter<Guide> = viewer.isAdmin ? {} : { agencyId: viewer.agencyId! };
+  if (query) filter.$and = searchTerms(query).map((term) => ({ $or: [
+    { firstName: term }, { lastName: term }, { phone: term },
+  ] }));
+  const guidesCollection = db.collection<Guide>('guides');
+  const total = await guidesCollection.countDocuments(filter);
+  const page = pageForTotal(requestedPage, total);
+  const guides = await guidesCollection.find(filter)
+    .sort({ createdAt: -1, lastName: 1, _id: -1 })
+    .skip((page - 1) * LIST_PAGE_SIZE).limit(LIST_PAGE_SIZE).toArray();
 
   return <div className="users-page">
     <GuideForm />
+    <ListSearch path="/dashboard/guides" query={query} placeholder="Rehber ara" total={total} />
     <section className="users-card" aria-label="Rehber listesi">
       {guides.length ? <div className="users-table-wrap"><table className="users-table guides-table guide-list-table">
         <thead><tr><th>FOTOĞRAF</th><th>AD</th><th>SOYAD</th><th>TELEFON</th><th>İŞLEM</th></tr></thead>
@@ -47,7 +57,8 @@ export default async function GuidesPage() {
             <GuideEditButton guide={{ id: guide._id.toString(), firstName: guide.firstName, lastName: guide.lastName, phone: guide.phone, photoUrl }} />
           </div></td>
         </tr>})}</tbody>
-      </table></div> : <div className="users-empty"><span>◎</span><h3>Henüz rehber yok</h3><p>İlk rehberi eklemek için sağ üstteki butonu kullanın.</p></div>}
+      </table></div> : <div className="users-empty"><span>◎</span><h3>{query ? 'Sonuç bulunamadı' : 'Henüz rehber yok'}</h3><p>{query ? 'Arama terimini değiştirip tekrar deneyin.' : 'İlk rehberi eklemek için sağ üstteki butonu kullanın.'}</p></div>}
+      <ListPagination path="/dashboard/guides" query={query} page={page} total={total} />
     </section>
   </div>;
 }
