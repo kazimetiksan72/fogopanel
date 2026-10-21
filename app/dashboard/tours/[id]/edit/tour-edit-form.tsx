@@ -6,10 +6,11 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSo
 import { useRouter } from 'next/navigation';
 import AgencyCombobox from '../../agency-combobox';
 import SortableVisitRow from './sortable-visit-row';
+import VisitEditorModal, { type VisitDraft } from './visit-editor-modal';
 
 type AgencyOption = { id: string; name: string };
 type TourFields = { name: string; agencyId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
-type Visit = { key: string; placeId: string; startTime: string };
+type Visit = { key: string; placeId: string; placeName?: string; startTime: string };
 type DayPlan = { date: string; visits: Visit[] };
 type SavedDayPlan = { date: string; visits: { placeId: string; startTime: string }[] };
 
@@ -37,6 +38,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [visitEditor, setVisitEditor] = useState<VisitDraft | null>(null);
   const [dayPlans, setDayPlans] = useState<DayPlan[]>(() => initialDayPlans.map((plan) => ({
     date: plan.date,
     visits: plan.visits.map((visit, index) => ({ ...visit, key: `${plan.date}-${index}` })),
@@ -55,13 +57,20 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
     setSaved(false);
   }
 
-  function updateVisits(date: string, change: (visits: Visit[]) => Visit[]) {
+  function updateVisits(date: string, change: (visits: Visit[]) => Visit[], markDirty = true) {
     setDayPlans((current) => {
       const existing = current.find((plan) => plan.date === date);
       const updated = change(existing?.visits || []);
       return [...current.filter((plan) => plan.date !== date), { date, visits: updated }];
     });
-    setSaved(false);
+    if (markDirty) setSaved(false);
+  }
+
+  function saveVisit(draft: VisitDraft) {
+    updateVisits(draft.date, (visits) => draft.key
+      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, startTime: draft.startTime } : visit)
+      : [...visits, { key: crypto.randomUUID(), placeId: draft.placeId, placeName: draft.placeName, startTime: draft.startTime }]);
+    setVisitEditor(null);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -138,7 +147,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
         <div id="tour-day-panel" className="tour-day-panel" role="tabpanel" aria-labelledby={`tour-day-tab-${activeDay}`} tabIndex={0}>
           <span className="tour-day-panel-count">{activeDay + 1}. GÜN / {days.length} GÜN</span>
           <h3>{dateFormatter.format(days[activeDay])}</h3>
-          <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => updateVisits(activeDate!, (visits) => [...visits, { key: crypto.randomUUID(), placeId: '', startTime: '' }])}>＋ Yer Ekle</button></div>
+          <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => setVisitEditor({ date: activeDate!, placeId: '', placeName: '', startTime: '' })}>＋ Yer Ekle</button></div>
           {activeVisits.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
             if (!activeDate || !over || active.id === over.id) return;
             updateVisits(activeDate, (visits) => {
@@ -152,8 +161,8 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
                 key={visit.key}
                 visit={visit}
                 index={index}
-                onPlaceChange={(placeId) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeId } : item))}
-                onTimeChange={(startTime) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, startTime } : item))}
+                onNameResolved={(placeName) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeName } : item), false)}
+                onEdit={() => setVisitEditor({ key: visit.key, date: activeDate!, placeId: visit.placeId, placeName: visit.placeName || '', startTime: visit.startTime })}
                 onRemove={() => updateVisits(activeDate!, (visits) => visits.filter((item) => item.key !== visit.key))}
               />)}</div>
             </SortableContext>
@@ -164,5 +173,6 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
     {error && <p className="form-error tour-edit-feedback" role="alert">{error}</p>}
     {saved && <p className="profile-success tour-edit-feedback" role="status">Tur bilgileri kaydedildi.</p>}
     <div className="tour-edit-actions"><button className="save-button" type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button></div>
+    {visitEditor && <VisitEditorModal key={`${visitEditor.date}-${visitEditor.key || 'new'}`} initial={visitEditor} onSave={saveVisit} onClose={() => setVisitEditor(null)} />}
   </form>;
 }
