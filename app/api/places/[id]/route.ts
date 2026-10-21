@@ -3,6 +3,14 @@ import { getViewer } from '@/lib/viewer';
 
 export const runtime = 'nodejs';
 
+function googleUrl(value?: string) {
+  if (!value) return '';
+  try {
+    const url = new URL(value, 'https://maps.google.com');
+    return url.protocol === 'https:' ? url.toString() : '';
+  } catch { return ''; }
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await getViewer();
   if (!viewer) return NextResponse.json({ error: 'Oturum açmanız gerekiyor.' }, { status: 401 });
@@ -24,7 +32,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     url.searchParams.set('regionCode', 'TR');
     if (sessionToken) url.searchParams.set('sessionToken', sessionToken);
     const response = await fetch(url, {
-      headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': 'id,displayName,formattedAddress,attributions' },
+      headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': 'id,displayName,formattedAddress,attributions,photos' },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
@@ -32,13 +40,35 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       console.error('Google Place Details hatası:', response.status);
       return NextResponse.json({ error: 'Yer bilgisi alınamadı.' }, { status: 502 });
     }
-    const data = await response.json() as { id?: string; displayName?: { text?: string }; formattedAddress?: string; attributions?: { provider?: string; providerUri?: string }[] };
+    const data = await response.json() as {
+      id?: string;
+      displayName?: { text?: string };
+      formattedAddress?: string;
+      attributions?: { provider?: string; providerUri?: string }[];
+      photos?: {
+        name?: string;
+        googleMapsUri?: string;
+        authorAttributions?: { displayName?: string; uri?: string; photoUri?: string }[];
+      }[];
+    };
     if (!data.id || !data.displayName?.text) return NextResponse.json({ error: 'Yer bilgisi bulunamadı.' }, { status: 404 });
     const attributions = (data.attributions || []).filter((item) => item.provider).slice(0, 10).map((item) => ({
       provider: item.provider,
-      providerUri: item.providerUri?.startsWith('https://') ? item.providerUri : '',
+      providerUri: googleUrl(item.providerUri),
     }));
-    return NextResponse.json({ id: data.id, name: data.displayName.text, address: data.formattedAddress || '', attributions }, { headers: { 'Cache-Control': 'no-store' } });
+    const photos = (data.photos || [])
+      .filter((photo) => photo.name?.startsWith(`places/${data.id}/photos/`) && googleUrl(photo.googleMapsUri))
+      .slice(0, 5)
+      .map((photo) => ({
+        name: photo.name,
+        googleMapsUri: googleUrl(photo.googleMapsUri),
+        authors: (photo.authorAttributions || []).filter((author) => author.displayName).map((author) => ({
+          name: author.displayName,
+          uri: googleUrl(author.uri),
+          photoUri: googleUrl(author.photoUri),
+        })),
+      }));
+    return NextResponse.json({ id: data.id, name: data.displayName.text, address: data.formattedAddress || '', attributions, photos }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Google Place Details bağlantı hatası:', error);
     return NextResponse.json({ error: 'Yer bilgisi alınamadı.' }, { status: 502 });

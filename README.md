@@ -8,7 +8,7 @@ React (Next.js), Node.js ve MongoDB ile hazırlanmış tur ve acente yönetim pa
 - **Profilim:** Oturum açan kullanıcı kendi ad ve soyadını güncelleyebilir.
 - **Kullanıcılar:** Ad, soyad, e-posta ve şifreyle kullanıcı eklenir. Acente seçimi isteğe bağlıdır. Admin kullanıcıları düzenleyebilir. Şifreler hash olarak saklanır.
 - **Acenteler:** Acente adı, 10 haneli VKN ve adresle yeni acente kaydı oluşturulur. Admin mevcut acenteleri düzenleyebilir.
-- **Turlar:** Tur adı, isteğe bağlı acente, başlangıç ve bitiş tarihleri ile Kurumsal/Bireysel tur tipi kaydedilir. Düzenleme ekranında her gün için Google Places aramasıyla birden fazla gezilecek yer ve başlangıç saati eklenebilir.
+- **Turlar:** Tur adı, isteğe bağlı acente, başlangıç ve bitiş tarihleri ile Kurumsal/Bireysel tur tipi kaydedilir. Düzenleme ekranında her gün için Google Places aramasıyla birden fazla gezilecek yer ve başlangıç saati eklenebilir. Yer seçilince en fazla beş Google Places fotoğrafı karuzelde gösterilir.
 - **Rehberler:** Ad, soyad, telefon ve kırpılmış fotoğrafla rehber eklenir; bilgiler ve fotoğraf düzenlenebilir. Kimlik kartındaki QR kod, ad ve telefonu vCard kişi kaydı olarak taşır. Fotoğraflar özel Azure Blob Storage kapsayıcısında saklanır.
 
 Bir acentenin panele giriş yapması için **Kullanıcılar** bölümünden e-posta ve şifreyle bir kullanıcı oluşturup acenteyi seçin. Acenteye bağlı kullanıcı yalnızca kendi acentesinin kullanıcılarını, acente kaydını, turlarını ve rehberlerini görür; kendi acentesine kullanıcı, tur ve rehber ekleyebilir. Tüm acenteleri, turları ve rehberleri `system@fogo.com.tr` yönetebilir. Acente seçilmeden oluşturulan diğer kullanıcılar sadece kendi profillerine erişebilir.

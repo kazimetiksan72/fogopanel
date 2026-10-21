@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import PlacePhotoCarousel, { type PlacePhoto } from './place-photo-carousel';
 
-type Place = { id: string; name: string; address: string; attributions?: { provider: string; providerUri: string }[] };
+type Place = { id: string; name: string; address: string; attributions?: { provider: string; providerUri: string }[]; photos?: PlacePhoto[] };
 
 export default function PlaceSearch({ value, onChange, inputId }: { value: string; onChange: (placeId: string) => void; inputId: string }) {
   const listId = useId();
@@ -149,5 +150,6 @@ export default function PlaceSearch({ value, onChange, inputId }: { value: strin
         ? <a key={`${item.provider}-${index}`} href={item.providerUri} target="_blank" rel="noopener noreferrer">{item.provider}</a>
         : <span key={`${item.provider}-${index}`}>{item.provider}</span>)}
     </div>}
+    {selectedPlace && !open && <PlacePhotoCarousel key={selectedPlace.id} photos={selectedPlace.photos || []} placeName={selectedPlace.name} />}
   </div>;
 }

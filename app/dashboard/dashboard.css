@@ -88,6 +88,25 @@
 .place-selected-address a { color: #69727d; }
 .google-maps-attribution { display: block; flex: none; padding: 8px 10px 4px; color: #5e5e5e; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-style: normal; font-weight: 400; letter-spacing: normal; white-space: nowrap; }
 .place-selected-address .google-maps-attribution { padding: 0; }
+.place-photo-carousel { overflow: hidden; margin-top: 14px; border: 1px solid #e7e9ed; border-radius: 12px; background: #fff; }
+.place-photo-stage { position: relative; height: 245px; overflow: hidden; background: #f2f3f5; }
+.place-photo-stage > img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.place-photo-unavailable { display: grid; place-items: center; width: 100%; height: 100%; color: #89919b; font-size: 13px; }
+.place-photo-arrow { position: absolute; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(255,255,255,.94); color: #303944; box-shadow: 0 2px 8px rgba(0,0,0,.2); font-size: 28px; line-height: 1; }
+.place-photo-arrow:hover { background: #fff2ef; color: #c83f31; }
+.place-photo-arrow.previous { left: 12px; }
+.place-photo-arrow.next { right: 12px; }
+.place-photo-count { position: absolute; right: 12px; bottom: 12px; padding: 5px 9px; border-radius: 6px; background: rgba(25,30,38,.75); color: #fff; font-size: 11px; font-weight: 700; }
+.place-photo-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 9px 12px; }
+.place-photo-authors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.place-photo-author { display: inline-flex; align-items: center; gap: 6px; color: #69727d; font-size: 11px; }
+.place-photo-author img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+.place-photo-author a, .place-photo-source { color: #69727d; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; }
+.place-photo-author a:hover, .place-photo-source:hover { color: #c83f31; }
+.place-photo-dots { display: flex; justify-content: center; align-items: center; gap: 7px; padding: 0 12px 11px; }
+.place-photo-dots button { width: 7px; height: 7px; padding: 0; border: 0; border-radius: 50%; background: #cbd0d7; }
+.place-photo-dots button.active { width: 17px; border-radius: 5px; background: #d64335; }
+.place-photos-empty { margin: 10px 0 0; color: #8b939d; font-size: 11px; }
 .tour-edit-feedback { margin-top: 16px; }
 .guides-table { min-width: 690px; }
 .guides-table th:first-child, .guides-table td:first-child { width: 110px; }
