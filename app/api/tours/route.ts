@@ -44,8 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Acente bulunamadı.' }, { status: 400 });
     }
     const tours = db.collection('tours');
-    await tours.createIndex({ agencyId: 1, startDate: -1 });
-    const result = await tours.insertOne({ name, agencyId, startDate, endDate, type, createdAt: new Date(), updatedAt: new Date() });
+    await tours.createIndex({ createdByAgencyId: 1, startDate: -1 });
+    const result = await tours.insertOne({ name, agencyId, createdByAgencyId: viewer.agencyId || null, startDate, endDate, type, createdAt: new Date(), updatedAt: new Date() });
     return NextResponse.json({ ok: true, id: result.insertedId.toString() }, { status: 201 });
   } catch (error) {
     console.error('Tur ekleme hatası:', error);

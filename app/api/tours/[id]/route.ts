@@ -24,16 +24,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   catch { return NextResponse.json({ error: 'Geçersiz istek.' }, { status: 400 }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Geçersiz istek.' }, { status: 400 });
   const input = body as Record<string, unknown>;
-  if (Object.keys(input).some((key) => !['name', 'agencyId', 'startDate', 'endDate', 'type', 'dayPlans'].includes(key))) {
+  if (Object.keys(input).some((key) => !['name', 'agencyId', 'guideId', 'startDate', 'endDate', 'type', 'dayPlans'].includes(key))) {
     return NextResponse.json({ error: 'Geçersiz alan.' }, { status: 400 });
   }
 
   const name = typeof input.name === 'string' ? input.name.trim() : '';
   const agencyIdText = typeof input.agencyId === 'string' ? input.agencyId.trim() : '';
+  const guideIdProvided = Object.hasOwn(input, 'guideId');
+  if (guideIdProvided && typeof input.guideId !== 'string') return NextResponse.json({ error: 'Geçersiz rehber seçimi.' }, { status: 400 });
+  const guideIdText = typeof input.guideId === 'string' ? input.guideId.trim() : '';
   const startDate = parseDate(input.startDate);
   const endDate = parseDate(input.endDate);
   const type = input.type;
   if (agencyIdText && !ObjectId.isValid(agencyIdText)) return NextResponse.json({ error: 'Geçersiz acente seçimi.' }, { status: 400 });
+  if (guideIdText && !ObjectId.isValid(guideIdText)) return NextResponse.json({ error: 'Geçersiz rehber seçimi.' }, { status: 400 });
   if (name.length < 2 || name.length > 120 || !startDate || !endDate || endDate < startDate || (type !== 'corporate' && type !== 'individual')) {
     return NextResponse.json({ error: 'Tur adı, tarihler ve tur tipini kontrol edin.' }, { status: 400 });
   }
@@ -78,15 +82,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Yalnızca kendi acentenizin turunu düzenleyebilirsiniz.' }, { status: 403 });
   }
   const agencyId = viewer.agencyId || requestedAgencyId;
+  const guideId = guideIdText ? new ObjectId(guideIdText) : null;
 
   try {
     const db = await getDatabase();
     if (agencyId && !await db.collection('agencies').findOne({ _id: agencyId }, { projection: { _id: 1 } })) {
       return NextResponse.json({ error: 'Acente bulunamadı.' }, { status: 400 });
     }
+    if (guideId && !await db.collection('guides').findOne({ _id: guideId, ...(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! }) }, { projection: { _id: 1 } })) {
+      return NextResponse.json({ error: 'Rehber bulunamadı veya seçme yetkiniz yok.' }, { status: 400 });
+    }
     const result = await db.collection('tours').updateOne(
-      { _id: new ObjectId(id), ...(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! }) },
-      { $set: { name, agencyId, startDate, endDate, type, ...(dayPlans ? { dayPlans } : {}), updatedAt: new Date() } },
+      { _id: new ObjectId(id), ...(viewer.isAdmin ? {} : { createdByAgencyId: viewer.agencyId! }) },
+      { $set: { name, agencyId, ...(guideIdProvided ? { guideId } : {}), startDate, endDate, type, ...(dayPlans ? { dayPlans } : {}), updatedAt: new Date() } },
     );
     if (!result.matchedCount) return NextResponse.json({ error: 'Tur bulunamadı.' }, { status: 404 });
     return NextResponse.json({ ok: true });

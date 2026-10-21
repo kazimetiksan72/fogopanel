@@ -26,7 +26,7 @@ export default async function ToursPage() {
   const agencyOptions = agencies.map((agency) => ({ id: agency._id.toString(), name: agency.name }));
   const agencyNames = new Map(agencyOptions.map((agency) => [agency.id, agency.name]));
   const tours = await db.collection<Tour>('tours')
-    .find(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! })
+    .find(viewer.isAdmin ? {} : { createdByAgencyId: viewer.agencyId! })
     .sort({ startDate: -1, createdAt: -1 })
     .toArray();
 

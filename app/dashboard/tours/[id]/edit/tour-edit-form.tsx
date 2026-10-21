@@ -10,7 +10,8 @@ import VisitEditorModal, { type VisitDraft } from './visit-editor-modal';
 import type { PlacePhoto } from './place-photo-carousel';
 
 type AgencyOption = { id: string; name: string };
-type TourFields = { name: string; agencyId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
+type GuideOption = { id: string; name: string };
+type TourFields = { name: string; agencyId: string; guideId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
 type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; startTime: string };
 type DayPlan = { date: string; visits: Visit[] };
 type SavedDayPlan = { date: string; visits: { placeId: string; startTime: string }[] };
@@ -26,10 +27,11 @@ function getTourDays(startDate: string, endDate: string) {
   return Array.from({ length: Math.floor((end - start) / DAY_MS) + 1 }, (_, index) => new Date(start + index * DAY_MS));
 }
 
-export default function TourEditForm({ id, initial, agencies, lockedAgencyId, initialDayPlans }: {
+export default function TourEditForm({ id, initial, agencies, guides, lockedAgencyId, initialDayPlans }: {
   id: string;
   initial: TourFields;
   agencies: AgencyOption[];
+  guides: GuideOption[];
   lockedAgencyId?: string;
   initialDayPlans: SavedDayPlan[];
 }) {
@@ -121,6 +123,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
       <div className="tour-edit-fields user-form">
         <div className="field"><label htmlFor="editTourName">Tur Adı</label><input id="editTourName" value={form.name} onChange={(event) => update('name', event.target.value)} maxLength={120} required /></div>
         <div className="field"><label htmlFor="tourAgency">Acente {!lockedAgencyId && <span className="optional-label">(isteğe bağlı)</span>}</label><AgencyCombobox agencies={agencies} value={form.agencyId} onChange={(agencyId) => update('agencyId', agencyId)} disabled={Boolean(lockedAgencyId)} /></div>
+        <div className="field"><label htmlFor="editTourGuide">Rehber <span className="optional-label">(isteğe bağlı)</span></label><select id="editTourGuide" value={form.guideId} onChange={(event) => update('guideId', event.target.value)}><option value="">Rehber seçin</option>{guides.map((guide) => <option key={guide.id} value={guide.id}>{guide.name}</option>)}</select></div>
         <div className="form-row">
           <div className="field"><label htmlFor="editTourStartDate">Başlama Tarihi</label><input id="editTourStartDate" type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} required /></div>
           <div className="field"><label htmlFor="editTourEndDate">Bitiş Tarihi</label><input id="editTourEndDate" type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} required /></div>

@@ -12,7 +12,7 @@ export default async function DashboardPage() {
   const db = await getDatabase();
   const agencyFilter = viewer.isAdmin ? {} : { agencyId: viewer.agencyId! };
   const [tourCount, userCount, agencyCount] = await Promise.all([
-    db.collection('tours').countDocuments(agencyFilter),
+    db.collection('tours').countDocuments(viewer.isAdmin ? {} : { createdByAgencyId: viewer.agencyId! }),
     db.collection('admins').countDocuments(agencyFilter),
     db.collection('agencies').countDocuments(viewer.isAdmin ? {} : { _id: viewer.agencyId! }),
   ]);

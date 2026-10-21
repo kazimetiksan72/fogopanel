@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 type Tour = {
   name: string;
   agencyId?: ObjectId | null;
+  guideId?: ObjectId | null;
   startDate: Date;
   endDate: Date;
   type: 'corporate' | 'individual';
@@ -27,13 +28,17 @@ export default async function TourEditPage({ params }: { params: Promise<{ id: s
   const db = await getDatabase();
   const tour = await db.collection<Tour>('tours').findOne({
     _id: new ObjectId(id),
-    ...(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! }),
+    ...(viewer.isAdmin ? {} : { createdByAgencyId: viewer.agencyId! }),
   });
   if (!tour) notFound();
 
   const agencies = await db.collection<{ name: string }>('agencies')
     .find(viewer.isAdmin ? {} : { _id: viewer.agencyId! }, { projection: { name: 1 } })
     .sort({ name: 1 })
+    .toArray();
+  const guides = await db.collection<{ firstName: string; lastName: string; agencyId?: ObjectId | null }>('guides')
+    .find(viewer.isAdmin ? {} : { agencyId: viewer.agencyId! }, { projection: { firstName: 1, lastName: 1 } })
+    .sort({ firstName: 1, lastName: 1 })
     .toArray();
 
   return <div className="tour-edit-page">
@@ -43,11 +48,13 @@ export default async function TourEditPage({ params }: { params: Promise<{ id: s
       initial={{
         name: tour.name,
         agencyId: tour.agencyId?.toString() || '',
+        guideId: tour.guideId?.toString() || '',
         startDate: tour.startDate.toISOString().slice(0, 10),
         endDate: tour.endDate.toISOString().slice(0, 10),
         type: tour.type,
       }}
       agencies={agencies.map((agency) => ({ id: agency._id.toString(), name: agency.name }))}
+      guides={guides.map((guide) => ({ id: guide._id.toString(), name: `${guide.firstName} ${guide.lastName}`.trim() }))}
       lockedAgencyId={viewer.agencyId?.toString()}
       initialDayPlans={tour.dayPlans || []}
     />
