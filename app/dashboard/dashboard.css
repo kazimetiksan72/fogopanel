@@ -74,6 +74,11 @@
 .tour-visit-row .field { min-width: 0; }
 .tour-visit-row .field label { margin-bottom: 8px; }
 .tour-visit-row .field input { height: 47px; }
+.tour-visit-summary { display: none; }
+.tour-visits-list.is-dragging .tour-visit-row { grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid #e7e9ed; border-radius: 9px; margin: 4px 0; }
+.tour-visits-list.is-dragging .tour-visit-handle { margin: 0; }
+.tour-visits-list.is-dragging .tour-visit-summary { display: block; min-width: 0; overflow: hidden; color: #303944; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.tour-visits-list.is-dragging .tour-visit-place, .tour-visits-list.is-dragging .tour-visit-time, .tour-visits-list.is-dragging .tour-visit-remove { display: none; }
 .tour-visit-handle { display: grid; place-items: center; width: 34px; height: 34px; margin-top: 27px; border: 1px solid #e7e9ed; border-radius: 8px; background: #fff; color: #7b8490; cursor: grab; touch-action: none; }
 .tour-visit-handle:hover, .tour-visit-handle:focus-visible { color: #c83f31; border-color: #eab6af; background: #fff7f5; }
 .tour-visit-handle:active { cursor: grabbing; }

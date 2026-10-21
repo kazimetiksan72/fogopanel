@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, KeyboardEvent, useMemo, useState } from 'react';
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { closestCenter, DndContext, KeyboardSensor, MeasuringStrategy, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useRouter } from 'next/navigation';
 import AgencyCombobox from '../../agency-combobox';
@@ -37,6 +37,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [dayPlans, setDayPlans] = useState<DayPlan[]>(() => initialDayPlans.map((plan) => ({
     date: plan.date,
     visits: plan.visits.map((visit, index) => ({ ...visit, key: `${plan.date}-${index}` })),
@@ -139,7 +140,8 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
           <span className="tour-day-panel-count">{activeDay + 1}. GÜN / {days.length} GÜN</span>
           <h3>{dateFormatter.format(days[activeDay])}</h3>
           <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => updateVisits(activeDate!, (visits) => [...visits, { key: crypto.randomUUID(), placeId: '', startTime: '' }])}>＋ Yer Ekle</button></div>
-          {activeVisits.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
+          {activeVisits.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} measuring={{ droppable: { strategy: MeasuringStrategy.Always } }} onDragStart={() => setDragging(true)} onDragCancel={() => setDragging(false)} onDragEnd={({ active, over }) => {
+            setDragging(false);
             if (!activeDate || !over || active.id === over.id) return;
             updateVisits(activeDate, (visits) => {
               const from = visits.findIndex((visit) => visit.key === active.id);
@@ -148,7 +150,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
             });
           }}>
             <SortableContext items={activeVisits.map((visit) => visit.key)} strategy={verticalListSortingStrategy}>
-              <div className="tour-visits-list">{activeVisits.map((visit, index) => <SortableVisitRow
+              <div className={`tour-visits-list${dragging ? ' is-dragging' : ''}`}>{activeVisits.map((visit, index) => <SortableVisitRow
                 key={visit.key}
                 visit={visit}
                 index={index}

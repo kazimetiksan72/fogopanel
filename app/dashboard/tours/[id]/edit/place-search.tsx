@@ -5,7 +5,7 @@ import PlacePhotoCarousel, { type PlacePhoto } from './place-photo-carousel';
 
 type Place = { id: string; name: string; address: string; phone?: string; phoneUri?: string; attributions?: { provider: string; providerUri: string }[]; photos?: PlacePhoto[] };
 
-export default function PlaceSearch({ value, onChange, inputId }: { value: string; onChange: (placeId: string) => void; inputId: string }) {
+export default function PlaceSearch({ value, onChange, onNameChange, inputId }: { value: string; onChange: (placeId: string) => void; onNameChange?: (name: string) => void; inputId: string }) {
   const listId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedIdRef = useRef('');
@@ -34,6 +34,7 @@ export default function PlaceSearch({ value, onChange, inputId }: { value: strin
         selectedIdRef.current = value;
         setSelectedPlace(place);
         setQuery(place.name);
+        onNameChange?.(place.name);
         setError('');
       })
       .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Yer bilgisi alınamadı.'); })
@@ -90,6 +91,7 @@ export default function PlaceSearch({ value, onChange, inputId }: { value: strin
       selectedIdRef.current = detail.id;
       setSelectedPlace(detail);
       setQuery(detail.name);
+      onNameChange?.(detail.name);
       setSuggestions([]);
       setOpen(false);
       onChange(detail.id);
@@ -115,6 +117,7 @@ export default function PlaceSearch({ value, onChange, inputId }: { value: strin
         setQuery(event.target.value);
         setSelectedPlace(null);
         selectedIdRef.current = '';
+        onNameChange?.('');
         onChange('');
         setOpen(true);
         setError('');
