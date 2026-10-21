@@ -49,7 +49,7 @@ export default async function ToursPage({ searchParams }: { searchParams: ListSe
       {tours.length ? <div className="users-table-wrap"><table className="users-table tours-table">
         <thead><tr><th>TUR ADI</th><th>ACENTE</th><th>BAŞLAMA</th><th>BİTİŞ</th><th>TUR TİPİ</th><th>İŞLEM</th></tr></thead>
         <tbody>{tours.map((tour) => <tr key={tour._id.toString()}>
-          <td className="table-primary">{tour.name}</td>
+          <td className="table-primary"><Link className="tour-name-link" href={`/dashboard/tours/${tour._id.toString()}`}>{tour.name}</Link></td>
           <td>{agencyNames.get(tour.agencyId?.toString() || '') || '—'}</td>
           <td>{formatDate(tour.startDate)}</td>
           <td>{formatDate(tour.endDate)}</td>
