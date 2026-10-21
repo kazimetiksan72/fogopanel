@@ -7,10 +7,11 @@ import { useRouter } from 'next/navigation';
 import AgencyCombobox from '../../agency-combobox';
 import SortableVisitRow from './sortable-visit-row';
 import VisitEditorModal, { type VisitDraft } from './visit-editor-modal';
+import type { PlacePhoto } from './place-photo-carousel';
 
 type AgencyOption = { id: string; name: string };
 type TourFields = { name: string; agencyId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
-type Visit = { key: string; placeId: string; placeName?: string; startTime: string };
+type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; startTime: string };
 type DayPlan = { date: string; visits: Visit[] };
 type SavedDayPlan = { date: string; visits: { placeId: string; startTime: string }[] };
 
@@ -68,7 +69,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
 
   function saveVisit(draft: VisitDraft) {
     updateVisits(draft.date, (visits) => draft.key
-      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, startTime: draft.startTime } : visit)
+      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, photos: visit.placeId === draft.placeId ? visit.photos : undefined, startTime: draft.startTime } : visit)
       : [...visits, { key: crypto.randomUUID(), placeId: draft.placeId, placeName: draft.placeName, startTime: draft.startTime }]);
     setVisitEditor(null);
   }
@@ -161,7 +162,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
                 key={visit.key}
                 visit={visit}
                 index={index}
-                onNameResolved={(placeName) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeName } : item), false)}
+                onDetailsResolved={(placeName, photos) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeName, photos } : item), false)}
                 onEdit={() => setVisitEditor({ key: visit.key, date: activeDate!, placeId: visit.placeId, placeName: visit.placeName || '', startTime: visit.startTime })}
                 onRemove={() => updateVisits(activeDate!, (visits) => visits.filter((item) => item.key !== visit.key))}
               />)}</div>

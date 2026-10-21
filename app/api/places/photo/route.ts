@@ -12,13 +12,14 @@ export async function GET(request: NextRequest) {
   if (!apiKey) return NextResponse.json({ error: 'Google Places API anahtarı henüz tanımlanmadı.' }, { status: 503 });
 
   const photoName = request.nextUrl.searchParams.get('name') || '';
+  const size = request.nextUrl.searchParams.get('size');
   if (!/^places\/[A-Za-z0-9_-]{5,255}\/photos\/[A-Za-z0-9_-]{8,1024}$/.test(photoName)) {
     return NextResponse.json({ error: 'Geçersiz fotoğraf.' }, { status: 400 });
   }
 
   try {
     const url = new URL(`https://places.googleapis.com/v1/${photoName}/media`);
-    url.searchParams.set('maxWidthPx', '900');
+    url.searchParams.set('maxWidthPx', size === 'thumb' ? '240' : size === 'large' ? '1200' : '900');
     url.searchParams.set('skipHttpRedirect', 'true');
     const response = await fetch(url, {
       headers: { 'X-Goog-Api-Key': apiKey },

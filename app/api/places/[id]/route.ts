@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     url.searchParams.set('regionCode', 'TR');
     if (sessionToken) url.searchParams.set('sessionToken', sessionToken);
     const response = await fetch(url, {
-      headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': summary ? 'id,displayName' : 'id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,attributions,photos' },
+      headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': summary ? 'id,displayName,photos' : 'id,displayName,formattedAddress,nationalPhoneNumber,internationalPhoneNumber,attributions,photos' },
       cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     });
@@ -55,7 +55,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }[];
     };
     if (!data.id || !data.displayName?.text) return NextResponse.json({ error: 'Yer bilgisi bulunamadı.' }, { status: 404 });
-    if (summary) return NextResponse.json({ id: data.id, name: data.displayName.text }, { headers: { 'Cache-Control': 'no-store' } });
     const attributions = (data.attributions || []).filter((item) => item.provider).slice(0, 10).map((item) => ({
       provider: item.provider,
       providerUri: googleUrl(item.providerUri),
@@ -72,6 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           photoUri: googleUrl(author.photoUri),
         })),
       }));
+    if (summary) return NextResponse.json({ id: data.id, name: data.displayName.text, photos }, { headers: { 'Cache-Control': 'no-store' } });
     return NextResponse.json({
       id: data.id,
       name: data.displayName.text,
