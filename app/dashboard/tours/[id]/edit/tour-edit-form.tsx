@@ -5,13 +5,13 @@ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useRouter } from 'next/navigation';
 import AgencyCombobox from '../../agency-combobox';
-import SortableVisitRow from './sortable-visit-row';
+import SortableVisitRow, { type PlaceContact } from './sortable-visit-row';
 import VisitEditorModal, { type VisitDraft } from './visit-editor-modal';
 import type { PlacePhoto } from './place-photo-carousel';
 
 type AgencyOption = { id: string; name: string };
 type TourFields = { name: string; agencyId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
-type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; startTime: string };
+type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; startTime: string };
 type DayPlan = { date: string; visits: Visit[] };
 type SavedDayPlan = { date: string; visits: { placeId: string; startTime: string }[] };
 
@@ -69,7 +69,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
 
   function saveVisit(draft: VisitDraft) {
     updateVisits(draft.date, (visits) => draft.key
-      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, photos: visit.placeId === draft.placeId ? visit.photos : undefined, startTime: draft.startTime } : visit)
+      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, photos: visit.placeId === draft.placeId ? visit.photos : undefined, contact: visit.placeId === draft.placeId ? visit.contact : undefined, startTime: draft.startTime } : visit)
       : [...visits, { key: crypto.randomUUID(), placeId: draft.placeId, placeName: draft.placeName, startTime: draft.startTime }]);
     setVisitEditor(null);
   }
@@ -149,7 +149,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
           <span className="tour-day-panel-count">{activeDay + 1}. GÜN / {days.length} GÜN</span>
           <h3>{dateFormatter.format(days[activeDay])}</h3>
           <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => setVisitEditor({ date: activeDate!, placeId: '', placeName: '', startTime: '' })}>＋ Yer Ekle</button></div>
-          {activeVisits.length ? <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
+          {activeVisits.length ? <DndContext id={`tour-visits-${id}-${activeDate}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
             if (!activeDate || !over || active.id === over.id) return;
             updateVisits(activeDate, (visits) => {
               const from = visits.findIndex((visit) => visit.key === active.id);
@@ -162,7 +162,7 @@ export default function TourEditForm({ id, initial, agencies, lockedAgencyId, in
                 key={visit.key}
                 visit={visit}
                 index={index}
-                onDetailsResolved={(placeName, photos) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeName, photos } : item), false)}
+                onDetailsResolved={(placeName, photos, contact) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeName, photos, contact } : item), false)}
                 onEdit={() => setVisitEditor({ key: visit.key, date: activeDate!, placeId: visit.placeId, placeName: visit.placeName || '', startTime: visit.startTime })}
                 onRemove={() => updateVisits(activeDate!, (visits) => visits.filter((item) => item.key !== visit.key))}
               />)}</div>
