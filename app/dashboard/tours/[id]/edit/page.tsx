@@ -14,7 +14,7 @@ type Tour = {
   startDate: Date;
   endDate: Date;
   type: 'corporate' | 'individual';
-  dayPlans?: { date: string; visits: { placeId: string; startTime: string }[] }[];
+  dayPlans?: { date: string; visits: { placeId: string; note?: string }[] }[];
 };
 
 export default async function TourEditPage({ params }: { params: Promise<{ id: string }> }) {

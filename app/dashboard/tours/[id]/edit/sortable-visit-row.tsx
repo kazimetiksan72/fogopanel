@@ -6,7 +6,7 @@ import type { PlacePhoto } from './place-photo-carousel';
 import PlacePhotoStrip from './place-photo-strip';
 
 export type PlaceContact = { address: string; phone: string; phoneUri: string };
-type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; startTime: string };
+type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; note: string };
 
 export default function SortableVisitRow({ visit, index, onDetailsResolved, onEdit, onRemove }: {
   visit: Visit;
@@ -59,7 +59,8 @@ export default function SortableVisitRow({ visit, index, onDetailsResolved, onEd
       {...listeners}
     ><svg viewBox="0 0 20 20" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="6" cy="4" r="1.5"/><circle cx="14" cy="4" r="1.5"/><circle cx="6" cy="10" r="1.5"/><circle cx="14" cy="10" r="1.5"/><circle cx="6" cy="16" r="1.5"/><circle cx="14" cy="16" r="1.5"/></svg></button>
     <div className="tour-visit-summary">
-      <div className="tour-visit-summary-heading"><strong>{visit.placeName || (nameError ? 'Mekân adı alınamadı' : 'Mekân yükleniyor…')}</strong><span>Başlangıç: {visit.startTime}</span></div>
+      <div className="tour-visit-summary-heading"><strong>{visit.placeName || (nameError ? 'Mekân adı alınamadı' : 'Mekân yükleniyor…')}</strong></div>
+      {visit.note && <p className="tour-visit-note">{visit.note}</p>}
       {visit.photos && <PlacePhotoStrip photos={visit.photos} placeName={visit.placeName || 'Mekân'} />}
       {visit.contact && (visit.contact.address || visit.contact.phone) && <div className="tour-visit-contact">
         {visit.contact.address && <div className="tour-visit-contact-line"><span>Adres</span><p>{visit.contact.address}</p></div>}

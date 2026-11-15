@@ -14,7 +14,7 @@ type Tour = {
   startDate: Date;
   endDate: Date;
   type: 'corporate' | 'individual';
-  dayPlans?: { date: string; visits: { placeId: string; startTime: string }[] }[];
+  dayPlans?: { date: string; visits: { placeId: string; note?: string }[] }[];
 };
 
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });

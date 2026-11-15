@@ -4,7 +4,7 @@ import { useEffect, useState, type KeyboardEvent } from 'react';
 import PlacePhotoStrip from './edit/place-photo-strip';
 import type { PlacePhoto } from './edit/place-photo-carousel';
 
-type Visit = { placeId: string; startTime: string };
+type Visit = { placeId: string; note?: string };
 type DayPlan = { date: string; visits: Visit[] };
 type PlaceSummary = { name: string; address: string; phone: string; phoneUri: string; photos: PlacePhoto[] };
 
@@ -46,7 +46,8 @@ function VisitDetail({ visit, index }: { visit: Visit; index: number }) {
   return <article className="tour-detail-visit">
     <span className="tour-detail-visit-number">{index + 1}</span>
     <div className="tour-visit-summary">
-      <div className="tour-visit-summary-heading"><strong>{place?.name || (error ? 'Mekân bilgisi alınamadı' : 'Mekân yükleniyor…')}</strong><span>Başlangıç: {visit.startTime}</span></div>
+      <div className="tour-visit-summary-heading"><strong>{place?.name || (error ? 'Mekân bilgisi alınamadı' : 'Mekân yükleniyor…')}</strong></div>
+      {visit.note && <p className="tour-visit-note">{visit.note}</p>}
       {place && <PlacePhotoStrip photos={place.photos} placeName={place.name} />}
       {place && (place.address || place.phone) && <div className="tour-visit-contact">
         {place.address && <div className="tour-visit-contact-line"><span>Adres</span><p>{place.address}</p></div>}

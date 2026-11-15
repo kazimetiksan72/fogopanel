@@ -12,9 +12,9 @@ import type { PlacePhoto } from './place-photo-carousel';
 type AgencyOption = { id: string; name: string };
 type GuideOption = { id: string; name: string };
 type TourFields = { name: string; agencyId: string; guideId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
-type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; startTime: string };
+type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; note: string };
 type DayPlan = { date: string; visits: Visit[] };
-type SavedDayPlan = { date: string; visits: { placeId: string; startTime: string }[] };
+type SavedDayPlan = { date: string; visits: { placeId: string; note?: string }[] };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const dateFormatter = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
@@ -44,7 +44,7 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
   const [visitEditor, setVisitEditor] = useState<VisitDraft | null>(null);
   const [dayPlans, setDayPlans] = useState<DayPlan[]>(() => initialDayPlans.map((plan) => ({
     date: plan.date,
-    visits: plan.visits.map((visit, index) => ({ ...visit, key: `${plan.date}-${index}` })),
+    visits: plan.visits.map((visit, index) => ({ ...visit, note: visit.note || '', key: `${plan.date}-${index}` })),
   })));
   const days = useMemo(() => getTourDays(form.startDate, form.endDate), [form.startDate, form.endDate]);
   const activeDay = Math.min(selectedDay, Math.max(days.length - 1, 0));
@@ -71,8 +71,8 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
 
   function saveVisit(draft: VisitDraft) {
     updateVisits(draft.date, (visits) => draft.key
-      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, photos: visit.placeId === draft.placeId ? visit.photos : undefined, contact: visit.placeId === draft.placeId ? visit.contact : undefined, startTime: draft.startTime } : visit)
-      : [...visits, { key: crypto.randomUUID(), placeId: draft.placeId, placeName: draft.placeName, startTime: draft.startTime }]);
+      ? visits.map((visit) => visit.key === draft.key ? { ...visit, placeId: draft.placeId, placeName: draft.placeName, photos: visit.placeId === draft.placeId ? visit.photos : undefined, contact: visit.placeId === draft.placeId ? visit.contact : undefined, note: draft.note } : visit)
+      : [...visits, { key: crypto.randomUUID(), placeId: draft.placeId, placeName: draft.placeName, note: draft.note }]);
     setVisitEditor(null);
   }
 
@@ -81,11 +81,11 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
     if (saving) return;
     const visibleDates = new Set(days.map((day) => day.toISOString().slice(0, 10)));
     const plansToSave = dayPlans.filter((plan) => visibleDates.has(plan.date) && plan.visits.length)
-      .map((plan) => ({ date: plan.date, visits: plan.visits.map(({ placeId, startTime }) => ({ placeId, startTime })) }));
-    const invalidPlan = plansToSave.find((plan) => plan.visits.some((visit) => !visit.placeId || !visit.startTime));
+      .map((plan) => ({ date: plan.date, visits: plan.visits.map(({ placeId, note }) => ({ placeId, note })) }));
+    const invalidPlan = plansToSave.find((plan) => plan.visits.some((visit) => !visit.placeId));
     if (invalidPlan) {
       setSelectedDay(days.findIndex((day) => day.toISOString().slice(0, 10) === invalidPlan.date));
-      setError('Her gezilecek yer için Google Maps sonucundan bir yer seçin ve başlangıç saati girin.');
+      setError('Her gezilecek yer için Google Maps sonucundan bir yer seçin.');
       return;
     }
     setSaving(true);
@@ -151,7 +151,7 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
         <div id="tour-day-panel" className="tour-day-panel" role="tabpanel" aria-labelledby={`tour-day-tab-${activeDay}`} tabIndex={0}>
           <span className="tour-day-panel-count">{activeDay + 1}. GÜN / {days.length} GÜN</span>
           <h3>{dateFormatter.format(days[activeDay])}</h3>
-          <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => setVisitEditor({ date: activeDate!, placeId: '', placeName: '', startTime: '' })}>＋ Yer Ekle</button></div>
+          <div className="tour-visits-heading"><h4>Gezilecek Yerler</h4><button type="button" className="cancel-button" onClick={() => setVisitEditor({ date: activeDate!, placeId: '', placeName: '', note: '' })}>＋ Yer Ekle</button></div>
           {activeVisits.length ? <DndContext id={`tour-visits-${id}-${activeDate}`} sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
             if (!activeDate || !over || active.id === over.id) return;
             updateVisits(activeDate, (visits) => {
@@ -166,7 +166,7 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
                 visit={visit}
                 index={index}
                 onDetailsResolved={(placeName, photos, contact) => updateVisits(activeDate!, (visits) => visits.map((item) => item.key === visit.key ? { ...item, placeName, photos, contact } : item), false)}
-                onEdit={() => setVisitEditor({ key: visit.key, date: activeDate!, placeId: visit.placeId, placeName: visit.placeName || '', startTime: visit.startTime })}
+                onEdit={() => setVisitEditor({ key: visit.key, date: activeDate!, placeId: visit.placeId, placeName: visit.placeName || '', note: visit.note })}
                 onRemove={() => updateVisits(activeDate!, (visits) => visits.filter((item) => item.key !== visit.key))}
               />)}</div>
             </SortableContext>

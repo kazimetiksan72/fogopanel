@@ -42,7 +42,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Tur adı, tarihler ve tur tipini kontrol edin.' }, { status: 400 });
   }
 
-  let dayPlans: { date: string; visits: { placeId: string; startTime: string }[] }[] | undefined;
+  let dayPlans: { date: string; visits: { placeId: string; note: string }[] }[] | undefined;
   if (input.dayPlans !== undefined) {
     if (!Array.isArray(input.dayPlans) || input.dayPlans.length > 1000) {
       return NextResponse.json({ error: 'Gün programını kontrol edin.' }, { status: 400 });
@@ -59,16 +59,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         return NextResponse.json({ error: 'Gün programındaki tarihleri ve yerleri kontrol edin.' }, { status: 400 });
       }
       seenDates.add(date);
-      const visits: { placeId: string; startTime: string }[] = [];
+      const visits: { placeId: string; note: string }[] = [];
       for (const rawVisit of plan.visits) {
         if (!rawVisit || typeof rawVisit !== 'object' || Array.isArray(rawVisit)) return NextResponse.json({ error: 'Gezilecek yerleri kontrol edin.' }, { status: 400 });
         const visit = rawVisit as Record<string, unknown>;
-        const placeId = typeof visit.placeId === 'string' ? visit.placeId : '';
-        const startTime = typeof visit.startTime === 'string' ? visit.startTime : '';
-        if (!/^[A-Za-z0-9_-]{5,255}$/.test(placeId) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime)) {
-          return NextResponse.json({ error: 'Her yer için Google Maps seçimi ve geçerli başlangıç saati gerekiyor.' }, { status: 400 });
+        if (Object.keys(visit).some((key) => !['placeId', 'note'].includes(key))) {
+          return NextResponse.json({ error: 'Gezilecek yerde geçersiz alan var.' }, { status: 400 });
         }
-        visits.push({ placeId, startTime });
+        const placeId = typeof visit.placeId === 'string' ? visit.placeId : '';
+        const note = typeof visit.note === 'string' ? visit.note.trim() : '';
+        if (!/^[A-Za-z0-9_-]{5,255}$/.test(placeId) || (visit.note !== undefined && typeof visit.note !== 'string') || note.length > 2000) {
+          return NextResponse.json({ error: 'Her yer için Google Maps seçimini ve not uzunluğunu kontrol edin.' }, { status: 400 });
+        }
+        visits.push({ placeId, note });
         visitCount++;
         if (visitCount > 1000) return NextResponse.json({ error: 'Çok fazla gezilecek yer eklendi.' }, { status: 400 });
       }
