@@ -7,6 +7,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   SafeAreaView,
@@ -20,9 +21,33 @@ import {
 type Role = 'participant' | 'guide';
 type Step = 'restoring' | 'phone' | 'code' | 'welcome';
 type MobileSession = { token: string; expiresAt: string; user: { id: string; role: Role; phone: string } };
+type Country = { flag: string; name: string; code: string };
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
 const SESSION_KEY = 'fogo.mobile.session';
+const countries: Country[] = [
+  { flag: '🇹🇷', name: 'Türkiye', code: '+90' }, { flag: '🇺🇸', name: 'ABD', code: '+1' },
+  { flag: '🇬🇧', name: 'Birleşik Krallık', code: '+44' }, { flag: '🇩🇪', name: 'Almanya', code: '+49' },
+  { flag: '🇫🇷', name: 'Fransa', code: '+33' }, { flag: '🇳🇱', name: 'Hollanda', code: '+31' },
+  { flag: '🇧🇪', name: 'Belçika', code: '+32' }, { flag: '🇦🇹', name: 'Avusturya', code: '+43' },
+  { flag: '🇨🇭', name: 'İsviçre', code: '+41' }, { flag: '🇮🇹', name: 'İtalya', code: '+39' },
+  { flag: '🇪🇸', name: 'İspanya', code: '+34' }, { flag: '🇵🇹', name: 'Portekiz', code: '+351' },
+  { flag: '🇬🇷', name: 'Yunanistan', code: '+30' }, { flag: '🇷🇺', name: 'Rusya', code: '+7' },
+  { flag: '🇦🇪', name: 'Birleşik Arap Emirlikleri', code: '+971' }, { flag: '🇸🇦', name: 'Suudi Arabistan', code: '+966' },
+  { flag: '🇦🇿', name: 'Azerbaycan', code: '+994' }, { flag: '🇨🇾', name: 'Kıbrıs', code: '+357' },
+  { flag: '🇮🇳', name: 'Hindistan', code: '+91' }, { flag: '🇵🇰', name: 'Pakistan', code: '+92' },
+  { flag: '🇨🇳', name: 'Çin', code: '+86' }, { flag: '🇯🇵', name: 'Japonya', code: '+81' },
+  { flag: '🇰🇷', name: 'Güney Kore', code: '+82' }, { flag: '🇦🇺', name: 'Avustralya', code: '+61' },
+  { flag: '🇳🇿', name: 'Yeni Zelanda', code: '+64' }, { flag: '🇧🇷', name: 'Brezilya', code: '+55' },
+  { flag: '🇲🇽', name: 'Meksika', code: '+52' }, { flag: '🇮🇱', name: 'İsrail', code: '+972' },
+  { flag: '🇮🇷', name: 'İran', code: '+98' }, { flag: '🇺🇦', name: 'Ukrayna', code: '+380' },
+  { flag: '🇵🇱', name: 'Polonya', code: '+48' }, { flag: '🇸🇪', name: 'İsveç', code: '+46' },
+  { flag: '🇳🇴', name: 'Norveç', code: '+47' }, { flag: '🇩🇰', name: 'Danimarka', code: '+45' },
+  { flag: '🇮🇪', name: 'İrlanda', code: '+353' }, { flag: '🇷🇴', name: 'Romanya', code: '+40' },
+  { flag: '🇧🇬', name: 'Bulgaristan', code: '+359' }, { flag: '🇭🇺', name: 'Macaristan', code: '+36' },
+  { flag: '🇭🇷', name: 'Hırvatistan', code: '+385' }, { flag: '🇲🇦', name: 'Fas', code: '+212' },
+  { flag: '🇪🇬', name: 'Mısır', code: '+20' },
+];
 
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -31,6 +56,25 @@ function normalizePhone(value: string) {
   if (digits.startsWith('00')) return `+${digits.slice(2)}`;
   if (digits.startsWith('90')) return `+${digits}`;
   return `+${digits}`;
+}
+
+function formatTurkishPhone(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  return digits.length > 3 ? `${digits.slice(0, 3)} ${digits.slice(3)}` : digits;
+}
+
+function toInternationalPhone(countryCode: string, nationalPhone: string) {
+  let digits = nationalPhone.replace(/\D/g, '');
+  if (countryCode === '+90') digits = digits.replace(/^0/, '');
+  return normalizePhone(`${countryCode}${digits}`);
+}
+
+function phoneParts(value: string) {
+  const digits = value.replace(/\D/g, '');
+  const country = [...countries].sort((a, b) => b.code.length - a.code.length)
+    .find((item) => digits.startsWith(item.code.slice(1)));
+  if (country) return { code: country.code, phone: digits.slice(country.code.length - 1) };
+  return { code: '+90', phone: digits.replace(/^90/, '').replace(/^0/, '') };
 }
 
 async function requestCode(phone: string, role: Role) {
@@ -73,6 +117,8 @@ export default function App() {
   const [role, setRole] = useState<Role>('participant');
   const [step, setStep] = useState<Step>('restoring');
   const [phone, setPhone] = useState('');
+  const [countryCode, setCountryCode] = useState('+90');
+  const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [restoreError, setRestoreError] = useState('');
@@ -98,7 +144,9 @@ export default function App() {
           await saveSession(session);
           if (mounted) {
             setRole(session.user.role);
-            setPhone(session.user.phone);
+            const phoneInfo = phoneParts(session.user.phone);
+            setCountryCode(phoneInfo.code);
+            setPhone(phoneInfo.phone);
             setStep('welcome');
           }
         } catch (error) {
@@ -149,16 +197,22 @@ export default function App() {
     setRestoreError('');
   }
 
+  function selectCountry(country: Country) {
+    setCountryCode(country.code);
+    setCountryPickerOpen(false);
+    setPhone((current) => country.code === '+90' ? formatTurkishPhone(current) : current.replace(/\D/g, ''));
+  }
+
   async function sendCode() {
-    const digits = phone.replace(/\D/g, '');
+    const internationalPhone = toInternationalPhone(countryCode, phone);
+    const digits = internationalPhone.replace(/\D/g, '');
     if (digits.length < 10 || digits.length > 15) {
       Alert.alert('Telefon numarası', 'Geçerli bir telefon numarası girin.');
       return;
     }
-    const normalizedPhone = normalizePhone(phone);
     setBusy(true);
     try {
-      await requestCode(normalizedPhone, role);
+      await requestCode(internationalPhone, role);
       setStep('code');
     } catch (error) {
       Alert.alert('Kod gönderilemedi', error instanceof Error ? error.message : 'Tekrar deneyin.');
@@ -174,7 +228,7 @@ export default function App() {
     }
     setBusy(true);
     try {
-      const session = await verifyCode(normalizePhone(phone), role, code);
+      const session = await verifyCode(toInternationalPhone(countryCode, phone), role, code);
       if (!session.token || !session.user?.id || session.user.role !== role) throw new Error('Oturum yanıtı geçersiz.');
       await saveSession(session);
       setStep('welcome');
@@ -195,6 +249,8 @@ export default function App() {
       await SecureStore.deleteItemAsync(SESSION_KEY);
       setStep('phone');
       setCode('');
+      setPhone('');
+      setCountryCode('+90');
     } catch { Alert.alert('Çıkış yapılamadı', 'Güvenli oturum alanına erişilemedi.'); }
   }
 
@@ -219,7 +275,7 @@ export default function App() {
                 {step === 'welcome'
                   ? `${isGuide ? 'Rehber' : 'Katılımcı'} olarak giriş yaptın.`
                   : step === 'code'
-                    ? `${phone} numarası için 6 haneli kodu gir.`
+                    ? `${countryCode} ${phone} numarası için 6 haneli kodu gir.`
                   : ''}
               </Text>
             )}
@@ -229,7 +285,7 @@ export default function App() {
             <View style={styles.successCard}>
               <View style={styles.successIcon}><Text style={styles.successCheck}>✓</Text></View>
               <Text style={styles.successTitle}>Giriş başarılı</Text>
-              <Text style={styles.successBody}>{phone}</Text>
+              <Text style={styles.successBody}>{toInternationalPhone(countryCode, phone)}</Text>
               <Pressable style={styles.secondaryButton} onPress={signOut}>
                 <Text style={styles.secondaryButtonText}>Çıkış yap</Text>
               </Pressable>
@@ -240,20 +296,39 @@ export default function App() {
                 <>
                   <Text style={styles.label}>TELEFON NUMARAN</Text>
                   <View style={styles.phoneField}>
-                    <Text style={styles.countryCode}>+90</Text>
+                    <Pressable style={styles.countryPickerButton} onPress={() => setCountryPickerOpen(true)} accessibilityRole="button" accessibilityLabel={`Ülke kodu ${countryCode}, ülke seç`}>
+                      <Text style={styles.countryFlag}>{countries.find((item) => item.code === countryCode)?.flag || '🌐'}</Text>
+                      <Text style={styles.countryCode}>{countryCode}</Text>
+                      <Text style={styles.countryChevron}>⌄</Text>
+                    </Pressable>
                     <View style={styles.fieldDivider} />
                     <TextInput
                       value={phone}
-                      onChangeText={setPhone}
+                      onChangeText={(value) => setPhone(countryCode === '+90' ? formatTurkishPhone(value) : value.replace(/\D/g, ''))}
                       keyboardType="phone-pad"
-                      placeholder="5XX XXX XX XX"
+                      placeholder={countryCode === '+90' ? '5XX XXXXXXX' : 'Telefon numarası'}
                       placeholderTextColor="#a9ada8"
                       style={styles.input}
                       accessibilityLabel="Telefon numarası"
+                      maxLength={countryCode === '+90' ? 11 : 24}
                       returnKeyType="done"
                       onSubmitEditing={sendCode}
                     />
                   </View>
+                  <Modal visible={countryPickerOpen} transparent animationType="fade" onRequestClose={() => setCountryPickerOpen(false)}>
+                    <Pressable style={styles.countryModalBackdrop} onPress={() => setCountryPickerOpen(false)}>
+                      <Pressable style={styles.countryModalCard} onPress={(event) => event.stopPropagation()}>
+                        <Text style={styles.countryModalTitle}>Ülke seçin</Text>
+                        <ScrollView keyboardShouldPersistTaps="handled">
+                          {countries.map((country) => <Pressable key={country.code} style={styles.countryOption} onPress={() => selectCountry(country)}>
+                            <Text style={styles.countryOptionFlag}>{country.flag}</Text>
+                            <Text style={styles.countryOptionName}>{country.name}</Text>
+                            <Text style={styles.countryOptionCode}>{country.code}</Text>
+                          </Pressable>)}
+                        </ScrollView>
+                      </Pressable>
+                    </Pressable>
+                  </Modal>
                   {restoreError ? <Text style={styles.helper}>{restoreError}</Text> : <Text style={styles.helper}>Giriş için telefon numaranı gir.</Text>}
                   <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={sendCode}>
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Kod gönder <Text style={styles.arrow}>→</Text></Text>}
@@ -310,9 +385,19 @@ const styles = StyleSheet.create({
   formCard: { padding: 22, borderRadius: 20, backgroundColor: '#fffefa', borderWidth: 1, borderColor: '#e9e8e1', shadowColor: '#314039', shadowOpacity: 0.04, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
   label: { color: '#777f77', fontSize: 10, letterSpacing: 1.5, fontWeight: '700', marginBottom: 12 },
   phoneField: { height: 58, borderWidth: 1, borderColor: '#e0e2dc', borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15 },
-  countryCode: { color: '#303b35', fontSize: 15, fontWeight: '600' },
+  countryPickerButton: { height: '100%', flexDirection: 'row', alignItems: 'center', gap: 4 },
+  countryFlag: { fontSize: 19 },
+  countryCode: { color: '#303b35', fontSize: 14, fontWeight: '600' },
+  countryChevron: { color: '#858c84', fontSize: 14, marginLeft: 1 },
   fieldDivider: { width: 1, height: 22, backgroundColor: '#e0e2dc', marginHorizontal: 13 },
   input: { flex: 1, color: '#303b35', fontSize: 16, paddingVertical: 10 },
+  countryModalBackdrop: { flex: 1, backgroundColor: '#10181470', justifyContent: 'center', paddingHorizontal: 28, paddingVertical: 50 },
+  countryModalCard: { maxHeight: '80%', borderRadius: 18, backgroundColor: '#fffefa', paddingHorizontal: 18, paddingTop: 20, paddingBottom: 10 },
+  countryModalTitle: { color: '#26322d', fontSize: 18, fontWeight: '700', paddingBottom: 12 },
+  countryOption: { minHeight: 48, flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#efeee9', gap: 11 },
+  countryOptionFlag: { width: 28, fontSize: 20 },
+  countryOptionName: { flex: 1, color: '#303b35', fontSize: 14 },
+  countryOptionCode: { color: '#778078', fontSize: 13, fontWeight: '600' },
   helper: { color: '#959b94', fontSize: 12, marginTop: 12, marginBottom: 22 },
   primaryButton: { minHeight: 56, borderRadius: 12, backgroundColor: '#d95734', alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.65 },
