@@ -4,9 +4,44 @@ import { useCallback, useEffect, useState } from 'react';
 
 type Participant = { id: string; fullName: string; phone: string };
 type ParticipantPage = { participants: Participant[]; page: number; pageSize: number; total: number; totalPages: number };
-type Draft = { fullName: string; phone: string };
+type Draft = { fullName: string; phone: string; countryCode: string };
 
-const emptyDraft: Draft = { fullName: '', phone: '' };
+const emptyDraft: Draft = { fullName: '', phone: '', countryCode: '+90' };
+const countries = [
+  { flag: '🇹🇷', name: 'Türkiye', code: '+90' }, { flag: '🇺🇸', name: 'ABD', code: '+1' },
+  { flag: '🇬🇧', name: 'Birleşik Krallık', code: '+44' }, { flag: '🇩🇪', name: 'Almanya', code: '+49' },
+  { flag: '🇫🇷', name: 'Fransa', code: '+33' }, { flag: '🇳🇱', name: 'Hollanda', code: '+31' },
+  { flag: '🇧🇪', name: 'Belçika', code: '+32' }, { flag: '🇦🇹', name: 'Avusturya', code: '+43' },
+  { flag: '🇨🇭', name: 'İsviçre', code: '+41' }, { flag: '🇮🇹', name: 'İtalya', code: '+39' },
+  { flag: '🇪🇸', name: 'İspanya', code: '+34' }, { flag: '🇵🇹', name: 'Portekiz', code: '+351' },
+  { flag: '🇬🇷', name: 'Yunanistan', code: '+30' }, { flag: '🇷🇺', name: 'Rusya', code: '+7' },
+  { flag: '🇦🇪', name: 'Birleşik Arap Emirlikleri', code: '+971' }, { flag: '🇸🇦', name: 'Suudi Arabistan', code: '+966' },
+  { flag: '🇦🇿', name: 'Azerbaycan', code: '+994' }, { flag: '🇨🇾', name: 'Kıbrıs', code: '+357' },
+  { flag: '🇮🇳', name: 'Hindistan', code: '+91' }, { flag: '🇵🇰', name: 'Pakistan', code: '+92' },
+  { flag: '🇨🇳', name: 'Çin', code: '+86' }, { flag: '🇯🇵', name: 'Japonya', code: '+81' },
+  { flag: '🇰🇷', name: 'Güney Kore', code: '+82' }, { flag: '🇦🇺', name: 'Avustralya', code: '+61' },
+  { flag: '🇳🇿', name: 'Yeni Zelanda', code: '+64' }, { flag: '🇧🇷', name: 'Brezilya', code: '+55' },
+  { flag: '🇲🇽', name: 'Meksika', code: '+52' }, { flag: '🇮🇱', name: 'İsrail', code: '+972' },
+  { flag: '🇮🇷', name: 'İran', code: '+98' }, { flag: '🇺🇦', name: 'Ukrayna', code: '+380' },
+  { flag: '🇵🇱', name: 'Polonya', code: '+48' }, { flag: '🇸🇪', name: 'İsveç', code: '+46' },
+  { flag: '🇳🇴', name: 'Norveç', code: '+47' }, { flag: '🇩🇰', name: 'Danimarka', code: '+45' },
+  { flag: '🇮🇪', name: 'İrlanda', code: '+353' }, { flag: '🇷🇴', name: 'Romanya', code: '+40' },
+  { flag: '🇧🇬', name: 'Bulgaristan', code: '+359' }, { flag: '🇭🇺', name: 'Macaristan', code: '+36' },
+  { flag: '🇭🇷', name: 'Hırvatistan', code: '+385' }, { flag: '🇲🇦', name: 'Fas', code: '+212' },
+  { flag: '🇪🇬', name: 'Mısır', code: '+20' },
+];
+
+function phoneDraft(phone: string): Pick<Draft, 'phone' | 'countryCode'> {
+  const digits = phone.replace(/\D/g, '');
+  const country = countries.slice(1).sort((a, b) => b.code.length - a.code.length).find(({ code }) => digits.startsWith(code.slice(1)));
+  if (country) return { countryCode: country.code, phone: digits.slice(country.code.length - 1) };
+  return { countryCode: '+90', phone: digits.replace(/^90/, '').replace(/^0/, '') };
+}
+
+function formatTurkishPhone(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  return digits.length > 3 ? `${digits.slice(0, 3)} ${digits.slice(3)}` : digits;
+}
 
 export default function TourParticipantsPanel({ tourId }: { tourId: string }) {
   const [result, setResult] = useState<ParticipantPage>({ participants: [], page: 1, pageSize: 20, total: 0, totalPages: 1 });
@@ -48,7 +83,7 @@ export default function TourParticipantsPanel({ tourId }: { tourId: string }) {
   function startEdit(participant: Participant) {
     setEditingId(participant.id);
     setAdding(false);
-    setDraft({ fullName: participant.fullName, phone: participant.phone });
+    setDraft({ fullName: participant.fullName, ...phoneDraft(participant.phone) });
     setError('');
     setMessage('');
   }
@@ -61,7 +96,7 @@ export default function TourParticipantsPanel({ tourId }: { tourId: string }) {
       const response = await fetch(`/api/tours/${tourId}/participants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ fullName: draft.fullName, phone: `${draft.countryCode}${draft.phone.replace(/\D/g, '')}` }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Katılımcı eklenemedi.');
@@ -92,7 +127,7 @@ export default function TourParticipantsPanel({ tourId }: { tourId: string }) {
       const response = await fetch(`/api/tours/${tourId}/participants/${editingId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(draft),
+        body: JSON.stringify({ fullName: draft.fullName, phone: `${draft.countryCode}${draft.phone.replace(/\D/g, '')}` }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Katılımcı güncellenemedi.');
@@ -170,6 +205,11 @@ function ParticipantFields({ draft, setDraft, disabled, idPrefix }: {
 }) {
   return <div className="tour-participant-fields">
     <div className="field"><label htmlFor={`${idPrefix}-name`}>Ad Soyad</label><input id={`${idPrefix}-name`} value={draft.fullName} onChange={(event) => setDraft({ ...draft, fullName: event.target.value })} maxLength={160} autoComplete="name" disabled={disabled} required /></div>
-    <div className="field"><label htmlFor={`${idPrefix}-phone`}>Telefon numarası</label><input id={`${idPrefix}-phone`} type="tel" value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} maxLength={32} autoComplete="tel" inputMode="tel" disabled={disabled} required /></div>
+    <div className="field"><label htmlFor={`${idPrefix}-phone`}>Telefon numarası</label><div className="participant-phone-control">
+      <select className="participant-country" aria-label="Ülke kodu" value={draft.countryCode} onChange={(event) => setDraft({ ...draft, countryCode: event.target.value })} disabled={disabled}>
+        {countries.map(({ flag, code }) => <option key={code} value={code}>{flag} {code}</option>)}
+      </select>
+      <input id={`${idPrefix}-phone`} type="tel" value={draft.countryCode === '+90' ? formatTurkishPhone(draft.phone) : draft.phone.replace(/\D/g, '')} onChange={(event) => setDraft({ ...draft, phone: draft.countryCode === '+90' ? formatTurkishPhone(event.target.value) : event.target.value.replace(/\D/g, '') })} maxLength={draft.countryCode === '+90' ? 11 : 24} autoComplete="tel-national" inputMode="numeric" disabled={disabled} required placeholder={draft.countryCode === '+90' ? '530 1793150' : 'Telefon numarası'} />
+    </div></div>
   </div>;
 }

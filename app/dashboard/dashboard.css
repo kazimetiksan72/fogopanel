@@ -79,6 +79,10 @@
 .tour-participant-fields .field label { color: #58616e; font-size: 12px; font-weight: 700; }
 .tour-participant-fields input { width: 100%; min-height: 42px; border: 1px solid #e1e4e8; border-radius: 8px; padding: 0 12px; color: #303944; font: inherit; font-size: 13px; }
 .tour-participant-fields input:focus { border-color: #d64335; outline: 0; box-shadow: 0 0 0 3px #d6433520; }
+.participant-phone-control { display: flex; min-width: 0; gap: 7px; }
+.participant-phone-control input { flex: 1; min-width: 0; }
+.participant-country { width: 104px; flex: none; min-height: 42px; border: 1px solid #e1e4e8; border-radius: 8px; padding: 0 7px; background: #fff; color: #303944; font: inherit; font-size: 13px; }
+.participant-country:focus { border-color: #d64335; outline: 0; box-shadow: 0 0 0 3px #d6433520; }
 .tour-participant-editor-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .tour-participants-table { min-width: 570px; }
 .tour-participants-table th:first-child, .tour-participants-table td:first-child { width: 42%; }
@@ -87,6 +91,7 @@
 .tour-participants-table td.tour-participants-empty { height: 100px; color: #8b939d; text-align: center; }
 .tour-participants-table td .tour-participant-fields { grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 10px; }
 .tour-participants-table td .tour-participant-fields label { display: none; }
+.tour-participants-table td .participant-country { width: 82px; font-size: 11px; }
 .tour-participant-row-actions { white-space: nowrap; }
 .tour-participant-icon-button { border: 0; padding: 7px 8px; background: transparent; color: #c83f31; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
 .tour-participant-icon-button:hover { text-decoration: underline; }
