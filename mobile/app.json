@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Fogo",
+    "slug": "fogo-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#f5f4ef"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.etiksan.fogo-mobile",
+      "appleTeamId": "WX99ZMN7BY"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#f5f4ef"
+      }
+    }
+  }
+}
