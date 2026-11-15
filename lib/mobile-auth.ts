@@ -41,7 +41,19 @@ export function mobileRole(input: unknown): MobileRole | null {
 
 export async function findMobileAccount(db: Db, phone: string, role: MobileRole) {
   const collection = db.collection<{ _id: ObjectId | string; phone?: string; phoneNormalized?: string; active?: boolean }>(role === 'guide' ? 'guides' : 'participants');
-  const accounts = await collection.find({ active: { $ne: false } }, { projection: { phone: 1, phoneNormalized: 1 } }).toArray();
+  const digits = phone.replace(/\D/g, '');
+  const variants = new Set([digits]);
+  if (digits.startsWith('90') && digits.length === 12) {
+    variants.add(digits.slice(2));
+    variants.add(`0${digits.slice(2)}`);
+  }
+  const phoneQueries = [...variants].map((variant) => ({
+    phone: { $regex: `(^|\\D)${variant.split('').join('\\D*')}(\\D|$)` },
+  }));
+  const accounts = await collection.find({
+    active: { $ne: false },
+    $or: [{ phoneNormalized: phone }, ...phoneQueries],
+  }, { projection: { phone: 1, phoneNormalized: 1 } }).limit(2).toArray();
   const matches = accounts.filter((account) => normalizeMobilePhone(account.phoneNormalized || account.phone) === phone);
   return matches.length === 1 ? matches[0]._id : null;
 }

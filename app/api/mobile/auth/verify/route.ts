@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
 import { accountStillMatches, createMobileSession, ensureMobileAuthIndexes, mobileHash, mobileRole, normalizeMobilePhone, requestFingerprint, safeEqual, withinRateLimit, type MobileRole } from '@/lib/mobile-auth';
+import { isDemoCodeEnabled } from '@/lib/mobile-sms';
 
 export const runtime = 'nodejs';
 
-type Challenge = { _id: string; role: MobileRole; phoneHash: string; accountId: string | null; codeHash: string; nonce: string; attempts: number; expiresAt: Date };
+type Challenge = { _id: string; role: MobileRole; phoneHash: string; accountId: string | null; codeHash: string; nonce: string; mode?: 'demo' | 'sms'; attempts: number; expiresAt: Date };
 const invalid = () => NextResponse.json({ error: 'Telefon, rol veya doğrulama kodu geçersiz.' }, { status: 401 });
 
 export async function POST(request: Request) {
@@ -36,7 +37,8 @@ export async function POST(request: Request) {
       { $inc: { attempts: 1 } },
       { returnDocument: 'after' },
     );
-    if (!challenge || !safeEqual(mobileHash(`code:${challenge.nonce}:${code}`), challenge.codeHash) || !challenge.accountId ||
+    if (!challenge || (challenge.mode !== 'sms' && !isDemoCodeEnabled()) ||
+        !safeEqual(mobileHash(`code:${challenge.nonce}:${code}`), challenge.codeHash) || !challenge.accountId ||
         !await accountStillMatches(db, challenge.accountId, phone, role)) return invalid();
     const consumed = await challenges.deleteOne({ _id: challenge._id, attempts: challenge.attempts });
     if (!consumed.deletedCount) return invalid();
