@@ -17,7 +17,7 @@ module.exports = ({ config }) => {
     },
     android: {
       ...config.android,
-      package: config.android?.package || 'com.etiksan.fogo',
+      package: config.android?.package || 'com.pikselmutfak.fogo',
     },
     plugins: [
       ['onesignal-expo-plugin', { mode, disableLocation: true }],
