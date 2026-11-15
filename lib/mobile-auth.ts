@@ -129,7 +129,7 @@ export async function signMobileToken(sessionId: string, session: MobileSession,
 
 export async function mobileSessionUser(db: Db, role: MobileRole, accountId: string, phone: string) {
   const id = ObjectId.isValid(accountId) ? new ObjectId(accountId) : accountId;
-  const account = await db.collection<{ fullName?: string; name?: string; firstName?: string; lastName?: string }>(role === 'guide' ? 'guides' : 'participants')
+  const account = await db.collection<{ _id: ObjectId | string; fullName?: string; name?: string; firstName?: string; lastName?: string }>(role === 'guide' ? 'guides' : 'participants')
     .findOne({ _id: id }, { projection: { fullName: 1, name: 1, firstName: 1, lastName: 1 } });
   const fullName = account?.fullName || account?.name || [account?.firstName, account?.lastName].filter(Boolean).join(' ');
   return { id: accountId, role, phone, ...(fullName ? { fullName } : {}) };
