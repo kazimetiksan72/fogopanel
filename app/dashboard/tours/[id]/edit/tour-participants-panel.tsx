@@ -209,7 +209,7 @@ function ParticipantFields({ draft, setDraft, disabled, idPrefix }: {
       <select className="participant-country" aria-label="Ülke kodu" value={draft.countryCode} onChange={(event) => setDraft({ ...draft, countryCode: event.target.value })} disabled={disabled}>
         {countries.map(({ flag, code }) => <option key={code} value={code}>{flag} {code}</option>)}
       </select>
-      <input id={`${idPrefix}-phone`} type="tel" value={draft.countryCode === '+90' ? formatTurkishPhone(draft.phone) : draft.phone.replace(/\D/g, '')} onChange={(event) => setDraft({ ...draft, phone: draft.countryCode === '+90' ? formatTurkishPhone(event.target.value) : event.target.value.replace(/\D/g, '') })} maxLength={draft.countryCode === '+90' ? 11 : 24} autoComplete="tel-national" inputMode="numeric" disabled={disabled} required placeholder={draft.countryCode === '+90' ? '530 1793150' : 'Telefon numarası'} />
+      <input id={`${idPrefix}-phone`} type="tel" value={draft.countryCode === '+90' ? formatTurkishPhone(draft.phone) : draft.phone.replace(/\D/g, '')} onChange={(event) => setDraft({ ...draft, phone: draft.countryCode === '+90' ? formatTurkishPhone(event.target.value) : event.target.value.replace(/\D/g, '') })} maxLength={draft.countryCode === '+90' ? 11 : 24} autoComplete="tel-national" inputMode="numeric" disabled={disabled} required placeholder={draft.countryCode === '+90' ? '5XX XXXXXXX' : ''} />
     </div></div>
   </div>;
 }
