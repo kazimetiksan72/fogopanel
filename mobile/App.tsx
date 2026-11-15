@@ -25,7 +25,7 @@ type MobileSession = { token: string; expiresAt: string; user: { id: string; rol
 type Country = { flag: string; name: string; code: string };
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
-const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID;
+const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID || 'ed2d9b4e-598e-423a-a2f8-733a4728cbab';
 const SESSION_KEY = 'fogo.mobile.session';
 const countries: Country[] = [
   { flag: '🇹🇷', name: 'Türkiye', code: '+90' }, { flag: '🇺🇸', name: 'ABD', code: '+1' },

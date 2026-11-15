@@ -4,7 +4,7 @@ Expo / React Native uygulaması, aynı Next.js projesinin mobil API'sini kullan�
 
 ```dotenv
 EXPO_PUBLIC_API_URL=https://ornek-api-adresi
-EXPO_PUBLIC_ONESIGNAL_APP_ID=onesignal-uygulama-id
+EXPO_PUBLIC_ONESIGNAL_APP_ID=ed2d9b4e-598e-423a-a2f8-733a4728cbab
 ```
 
 `EXPO_PUBLIC_` değişkenlerine gizli anahtar koymayın. OneSignal App ID uygulama içinde kullanılan genel kimliktir. Geliştirme bilgisayarındaki API'ye fiziksel telefondan bağlanmak için `localhost` yerine bilgisayarın ağ IP'sini kullanın.
@@ -15,7 +15,7 @@ npm install
 npm start
 ```
 
-OneSignal SDK ve Expo config plugin'i uygulamaya eklenmiştir. Kullanıcı giriş yaptıktan sonra cihaz, OneSignal'da backend hesap kimliğiyle eşleştirilir ve işletim sistemi bildirim izni ilk uygun anda sorulur. Çıkışta OneSignal oturumu kapatılır. OneSignal App ID için `EXPO_PUBLIC_ONESIGNAL_APP_ID` değerini ayarlayın. iOS için OneSignal panelinde APNs kimlik bilgileri, Android için Firebase/FCM kimlik bilgileri de yapılandırılmalıdır. Bildirimler Expo Go'da çalışmadığı için OneSignal içeren yeni bir native development veya production build gerekir.
+OneSignal SDK ve Expo config plugin'i uygulamaya eklenmiştir. Kullanıcı giriş yaptıktan sonra cihaz, OneSignal'da backend hesap kimliğiyle eşleştirilir ve işletim sistemi bildirim izni ilk uygun anda sorulur. Çıkışta OneSignal oturumu kapatılır. App ID varsayılan olarak projede tanımlıdır; farklı ortamda değiştirmek için `EXPO_PUBLIC_ONESIGNAL_APP_ID` değerini ayarlayın. iOS için OneSignal panelinde APNs kimlik bilgileri, Android için Firebase/FCM kimlik bilgileri de yapılandırılmalıdır. Bildirimler Expo Go'da çalışmadığı için OneSignal içeren yeni bir native development veya production build gerekir.
 
 ## Giriş API'si
 
