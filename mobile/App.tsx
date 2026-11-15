@@ -1,7 +1,9 @@
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import {
   ActivityIndicator,
+  AppState,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -16,9 +18,11 @@ import {
 } from 'react-native';
 
 type Role = 'participant' | 'guide';
-type Step = 'phone' | 'code' | 'welcome';
+type Step = 'restoring' | 'phone' | 'code' | 'welcome';
+type MobileSession = { accessToken: string; refreshToken: string; expiresAt: string; user: { id: string; role: Role; phone: string } };
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app';
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
+const SESSION_KEY = 'fogo.mobile.session';
 
 function normalizePhone(value: string) {
   const digits = value.replace(/\D/g, '');
@@ -30,7 +34,6 @@ function normalizePhone(value: string) {
 }
 
 async function requestCode(phone: string, role: Role) {
-  if (!API_URL) return { demo: true };
   const response = await fetch(`${API_URL}/api/mobile/auth/request-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -42,10 +45,6 @@ async function requestCode(phone: string, role: Role) {
 }
 
 async function verifyCode(phone: string, role: Role, code: string) {
-  if (!API_URL) {
-    if (code !== '1234') throw new Error('Kod hatalı. Tekrar deneyin.');
-    return { ok: true, phone, role, demo: true };
-  }
   const response = await fetch(`${API_URL}/api/mobile/auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -53,15 +52,93 @@ async function verifyCode(phone: string, role: Role, code: string) {
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Kod doğrulanamadı.');
-  return result;
+  return result as MobileSession;
+}
+
+async function refreshSession(token: string) {
+  const response = await fetch(`${API_URL}/api/mobile/auth/refresh`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const result = await response.json();
+  if (!response.ok) {
+    const error = new Error(result.error || 'Oturum yenilenemedi.') as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return result as MobileSession;
 }
 
 export default function App() {
   const [role, setRole] = useState<Role>('participant');
-  const [step, setStep] = useState<Step>('phone');
+  const [step, setStep] = useState<Step>('restoring');
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const [restoreError, setRestoreError] = useState('');
+  const sessionRef = useRef<MobileSession | null>(null);
+  const refreshInFlight = useRef(false);
+
+  async function saveSession(session: MobileSession) {
+    sessionRef.current = session;
+    await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
+  }
+
+  useEffect(() => {
+    let mounted = true;
+    async function restore() {
+      try {
+        const stored = await SecureStore.getItemAsync(SESSION_KEY);
+        if (!stored) { if (mounted) setStep('phone'); return; }
+        const previous = JSON.parse(stored) as MobileSession;
+        if (!previous.refreshToken) throw new Error('Oturum bilgisi geçersiz.');
+        try {
+          const session = await refreshSession(previous.refreshToken);
+          if (!session.accessToken || !session.refreshToken || !session.user?.id || !session.user?.role) throw new Error('Oturum yanıtı geçersiz.');
+          await saveSession(session);
+          if (mounted) {
+            setRole(session.user.role);
+            setPhone(session.user.phone);
+            setStep('welcome');
+          }
+        } catch (error) {
+          if ((error as Error & { status?: number }).status === 401) {
+            sessionRef.current = null;
+            await SecureStore.deleteItemAsync(SESSION_KEY);
+          } else if (mounted) {
+            setRestoreError('Oturum kontrol edilemedi. Bağlantınızı kontrol edip tekrar giriş yapın.');
+          }
+          if (mounted) setStep('phone');
+        }
+      } catch {
+        if (mounted) { setRestoreError('Güvenli oturum alanı açılamadı.'); setStep('phone'); }
+      }
+    }
+    restore();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (state) => {
+      if (state !== 'active' || !sessionRef.current || refreshInFlight.current) return;
+      refreshInFlight.current = true;
+      try {
+        const next = await refreshSession(sessionRef.current.refreshToken);
+        await saveSession(next);
+      } catch (error) {
+        const status = (error as Error & { status?: number }).status;
+        if (status === 401) {
+          sessionRef.current = null;
+          await SecureStore.deleteItemAsync(SESSION_KEY);
+          setStep('phone');
+          setRestoreError('Oturum süresi doldu. Telefon numaranızla yeniden giriş yapın.');
+        }
+      } finally {
+        refreshInFlight.current = false;
+      }
+    });
+    return () => subscription.remove();
+  }, []);
 
   const isGuide = role === 'guide';
 
@@ -69,6 +146,7 @@ export default function App() {
     setRole((current) => current === 'participant' ? 'guide' : 'participant');
     setStep('phone');
     setCode('');
+    setRestoreError('');
   }
 
   async function sendCode() {
@@ -90,19 +168,34 @@ export default function App() {
   }
 
   async function signIn() {
-    if (code.length !== 4) {
-      Alert.alert('Doğrulama kodu', '4 haneli kodu girin.');
+    if (code.length !== 6) {
+      Alert.alert('Doğrulama kodu', '6 haneli kodu girin.');
       return;
     }
     setBusy(true);
     try {
-      await verifyCode(normalizePhone(phone), role, code);
+      const session = await verifyCode(normalizePhone(phone), role, code);
+      if (!session.accessToken || !session.refreshToken || !session.user?.id || session.user.role !== role) throw new Error('Oturum yanıtı geçersiz.');
+      await saveSession(session);
       setStep('welcome');
     } catch (error) {
       Alert.alert('Giriş yapılamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function signOut() {
+    try {
+      const session = sessionRef.current;
+      if (session) {
+        await fetch(`${API_URL}/api/mobile/auth/signout`, { method: 'POST', headers: { Authorization: `Bearer ${session.refreshToken}` } });
+      }
+      sessionRef.current = null;
+      await SecureStore.deleteItemAsync(SESSION_KEY);
+      setStep('phone');
+      setCode('');
+    } catch { Alert.alert('Çıkış yapılamadı', 'Güvenli oturum alanına erişilemedi.'); }
   }
 
   return (
@@ -112,7 +205,7 @@ export default function App() {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <View style={styles.topBar}>
             <Image source={require('./assets/logo.png')} style={styles.logo} resizeMode="contain" accessibilityLabel="Fogo" />
-            {step !== 'welcome' && (
+            {step !== 'welcome' && step !== 'restoring' && (
               <Pressable accessibilityRole="button" accessibilityLabel={isGuide ? 'Katılımcı girişine geç' : 'Rehber girişine geç'} onPress={toggleRole} style={styles.roleSwitch}>
                 <Text style={styles.roleSwitchIcon}>{isGuide ? '♙' : '♧'}</Text>
               </Pressable>
@@ -120,25 +213,25 @@ export default function App() {
           </View>
 
           <View style={styles.hero}>
-            {(step !== 'phone' || isGuide) && <Text style={styles.title}>{step === 'welcome' ? 'Harika,\nhazırsın.' : step === 'code' ? 'Telefonunu\ndoğrula.' : 'Rehber girişi'}</Text>}
-            {step !== 'phone' && (
-              <Text style={[styles.subtitle, step === 'phone' && styles.phoneSubtitle]}>
+            {(step === 'welcome' || step === 'code' || (step === 'phone' && isGuide)) && <Text style={styles.title}>{step === 'welcome' ? 'Harika,\nhazırsın.' : step === 'code' ? 'Telefonunu\ndoğrula.' : 'Rehber girişi'}</Text>}
+            {(step === 'welcome' || step === 'code') && (
+              <Text style={styles.subtitle}>
                 {step === 'welcome'
                   ? `${isGuide ? 'Rehber' : 'Katılımcı'} olarak giriş yaptın.`
                   : step === 'code'
-                    ? `${phone} numarasına gönderilen 4 haneli kodu gir.`
+                    ? `${phone} numarası için 6 haneli kodu gir.`
                   : ''}
               </Text>
             )}
           </View>
 
-          {step === 'welcome' ? (
+          {step === 'restoring' ? <ActivityIndicator color="#d95734" size="large" /> : step === 'welcome' ? (
             <View style={styles.successCard}>
               <View style={styles.successIcon}><Text style={styles.successCheck}>✓</Text></View>
               <Text style={styles.successTitle}>Giriş başarılı</Text>
               <Text style={styles.successBody}>{phone}</Text>
-              <Pressable style={styles.secondaryButton} onPress={() => { setStep('phone'); setCode(''); }}>
-                <Text style={styles.secondaryButtonText}>Giriş ekranına dön</Text>
+              <Pressable style={styles.secondaryButton} onPress={signOut}>
+                <Text style={styles.secondaryButtonText}>Çıkış yap</Text>
               </Pressable>
             </View>
           ) : (
@@ -161,25 +254,26 @@ export default function App() {
                       onSubmitEditing={sendCode}
                     />
                   </View>
-                  <Text style={styles.helper}>SMS servisi bağlanana kadar deneme kodu 1234.</Text>
+                  {restoreError ? <Text style={styles.helper}>{restoreError}</Text> : <Text style={styles.helper}>Giriş için telefon numaranı gir.</Text>}
                   <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={sendCode}>
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Kod gönder <Text style={styles.arrow}>→</Text></Text>}
                   </Pressable>
                 </>
               ) : (
                 <>
-                  <Text style={styles.label}>4 HANELİ KOD</Text>
+                  <Text style={styles.label}>6 HANELİ KOD</Text>
                   <TextInput
                     value={code}
-                    onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 4))}
+                    onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
                     keyboardType="number-pad"
-                    placeholder="_  _  _  _"
+                    placeholder="_  _  _  _  _  _"
                     placeholderTextColor="#b9bdb7"
                     style={styles.codeInput}
                     accessibilityLabel="SMS doğrulama kodu"
-                    maxLength={4}
+                    maxLength={6}
                     autoFocus
                   />
+                  <Text style={styles.helper}>Geçici doğrulama kodu: 123456</Text>
                   <Text style={styles.helper}>Kod gelmedi mi? <Text style={styles.resend} onPress={sendCode}>Tekrar gönder</Text></Text>
                   <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={signIn}>
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Giriş yap <Text style={styles.arrow}>→</Text></Text>}
@@ -190,7 +284,7 @@ export default function App() {
             </View>
           )}
 
-          {step !== 'welcome' && <Text style={styles.privacy}>Devam ederek <Text style={styles.privacyLink}>Kullanım Koşulları</Text> ve <Text style={styles.privacyLink}>Gizlilik Politikası</Text>’nı kabul etmiş olursun.</Text>}
+          {step !== 'welcome' && step !== 'restoring' && <Text style={styles.privacy}>Devam ederek <Text style={styles.privacyLink}>Kullanım Koşulları</Text> ve <Text style={styles.privacyLink}>Gizlilik Politikası</Text>’nı kabul etmiş olursun.</Text>}
           <View style={styles.footer}><View style={styles.footerLine} /><Text style={styles.footerText}>GÜZEL YOLCULUKLAR BURADA BAŞLAR</Text><View style={styles.footerLine} /></View>
         </ScrollView>
       </KeyboardAvoidingView>

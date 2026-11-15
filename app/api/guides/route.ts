@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getGuidePhotoContainer } from '@/lib/azure-storage';
 import { getDatabase } from '@/lib/mongodb';
+import { normalizePhone } from '@/lib/mobile-auth';
 import { getViewer } from '@/lib/viewer';
 
 export const runtime = 'nodejs';
@@ -21,10 +22,11 @@ export async function POST(request: NextRequest) {
   const lastName = String(form.get('lastName') || '').trim();
   const phone = String(form.get('phone') || '').trim();
   const phoneDigits = phone.replace(/\D/g, '');
+  const phoneNormalized = normalizePhone(phone);
   const photo = form.get('photo');
 
   if (firstName.length < 2 || firstName.length > 80 || lastName.length < 2 || lastName.length > 80 ||
-      !/^[+\d() .-]{7,20}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+      !/^[+\d() .-]{7,20}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15 || !phoneNormalized) {
     return NextResponse.json({ error: 'Ad, soyad ve telefon bilgilerini kontrol edin.' }, { status: 400 });
   }
   if (!(photo instanceof File) || photo.type !== 'image/jpeg' || photo.size === 0 || photo.size > maxPhotoBytes) {
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
       const guides = db.collection('guides');
       await guides.createIndex({ agencyId: 1, createdAt: -1 });
       const result = await guides.insertOne({
-        firstName, lastName, phone, photoBlobName: blobName,
+        firstName, lastName, phone, phoneNormalized, photoBlobName: blobName,
         agencyId: viewer.agencyId || null,
         createdAt: new Date(), updatedAt: new Date(),
       });
