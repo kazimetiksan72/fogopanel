@@ -40,18 +40,17 @@ export function mobileRole(input: unknown): MobileRole | null {
 }
 
 export async function findMobileAccount(db: Db, phone: string, role: MobileRole) {
-  if (role === 'participant') return null; // No participant account model exists yet.
-  const guides = await db.collection<{ phone: string; active?: boolean }>('guides')
-    .find({ active: { $ne: false } }, { projection: { phone: 1 } }).toArray();
-  const matches = guides.filter((guide) => normalizeMobilePhone(guide.phone) === phone);
+  const collection = db.collection<{ _id: ObjectId | string; phone?: string; phoneNormalized?: string; active?: boolean }>(role === 'guide' ? 'guides' : 'participants');
+  const accounts = await collection.find({ active: { $ne: false } }, { projection: { phone: 1, phoneNormalized: 1 } }).toArray();
+  const matches = accounts.filter((account) => normalizeMobilePhone(account.phoneNormalized || account.phone) === phone);
   return matches.length === 1 ? matches[0]._id : null;
 }
 
 export async function accountStillMatches(db: Db, accountId: string, phone: string, role: MobileRole) {
-  if (role !== 'guide' || !ObjectId.isValid(accountId)) return false;
-  const guide = await db.collection<{ phone: string; active?: boolean }>('guides')
-    .findOne({ _id: new ObjectId(accountId), active: { $ne: false } }, { projection: { phone: 1 } });
-  return normalizeMobilePhone(guide?.phone) === phone;
+  const id = ObjectId.isValid(accountId) ? new ObjectId(accountId) : accountId;
+  const account = await db.collection<{ _id: ObjectId | string; phone?: string; phoneNormalized?: string; active?: boolean }>(role === 'guide' ? 'guides' : 'participants')
+    .findOne({ _id: id, active: { $ne: false } }, { projection: { phone: 1, phoneNormalized: 1 } });
+  return normalizeMobilePhone(account?.phoneNormalized || account?.phone) === phone;
 }
 
 export async function ensureMobileAuthIndexes(db: Db) {
@@ -120,5 +119,5 @@ export async function revokeMobileSession(token: string) {
   const claims = await readMobileToken(token);
   if (!claims) return;
   const db = await getDatabase();
-  await db.collection('mobile_auth_sessions').deleteOne({ _id: claims.sessionId, jtiHash: claims.jtiHash });
+  await db.collection<MobileSession & { _id: string }>('mobile_auth_sessions').deleteOne({ _id: claims.sessionId, jtiHash: claims.jtiHash });
 }

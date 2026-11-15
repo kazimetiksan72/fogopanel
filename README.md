@@ -32,3 +32,7 @@ Hesap oluşturma komutu aynı e-posta için tekrar çalıştırıldığında şi
 Bu klasörü Vercel projesinin kök dizini olarak seçin. Framework Preset: **Next.js**. Environment Variables bölümüne `MONGODB_URI`, `MONGODB_DB` (`fogo_admin`), `SESSION_SECRET`, `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_CONTAINER` (`guide-photos`) ve `GOOGLE_PLACES_API_KEY` ekleyin. Atlas ağ erişimi Vercel sunucularının bağlantısına izin vermelidir. Şifre veya bağlantı adresini `NEXT_PUBLIC_` değişkenlerine koymayın.
 
 Dağıtımdan önce bir yönetici hesabı oluşturulmalıdır. `.env.local` Git tarafından yok sayılır.
+
+## Mobil giriş
+
+Mobil uygulama `mobile/` altındadır. Telefon doğrulama uçları `app/api/mobile/auth/` içindedir ve yönetim panelinin cookie oturumundan bağımsız bearer token kullanır. Demo SMS kodunu kapatmak için sunucu ortamında `MOBILE_AUTH_DEMO_CODE_ENABLED=false` ayarlayın; gerçek SMS servisi bağlanmadan bu durumda yeni giriş yapılamaz. Mobil kurulum ve API sözleşmesi için `mobile/README.md` dosyasına bakın.

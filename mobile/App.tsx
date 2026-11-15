@@ -19,7 +19,7 @@ import {
 
 type Role = 'participant' | 'guide';
 type Step = 'restoring' | 'phone' | 'code' | 'welcome';
-type MobileSession = { accessToken: string; refreshToken: string; expiresAt: string; user: { id: string; role: Role; phone: string } };
+type MobileSession = { token: string; expiresAt: string; user: { id: string; role: Role; phone: string } };
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
 const SESSION_KEY = 'fogo.mobile.session';
@@ -91,10 +91,10 @@ export default function App() {
         const stored = await SecureStore.getItemAsync(SESSION_KEY);
         if (!stored) { if (mounted) setStep('phone'); return; }
         const previous = JSON.parse(stored) as MobileSession;
-        if (!previous.refreshToken) throw new Error('Oturum bilgisi geçersiz.');
+        if (!previous.token) throw new Error('Oturum bilgisi geçersiz.');
         try {
-          const session = await refreshSession(previous.refreshToken);
-          if (!session.accessToken || !session.refreshToken || !session.user?.id || !session.user?.role) throw new Error('Oturum yanıtı geçersiz.');
+          const session = await refreshSession(previous.token);
+          if (!session.token || !session.user?.id || !session.user?.role) throw new Error('Oturum yanıtı geçersiz.');
           await saveSession(session);
           if (mounted) {
             setRole(session.user.role);
@@ -123,7 +123,7 @@ export default function App() {
       if (state !== 'active' || !sessionRef.current || refreshInFlight.current) return;
       refreshInFlight.current = true;
       try {
-        const next = await refreshSession(sessionRef.current.refreshToken);
+        const next = await refreshSession(sessionRef.current.token);
         await saveSession(next);
       } catch (error) {
         const status = (error as Error & { status?: number }).status;
@@ -175,7 +175,7 @@ export default function App() {
     setBusy(true);
     try {
       const session = await verifyCode(normalizePhone(phone), role, code);
-      if (!session.accessToken || !session.refreshToken || !session.user?.id || session.user.role !== role) throw new Error('Oturum yanıtı geçersiz.');
+      if (!session.token || !session.user?.id || session.user.role !== role) throw new Error('Oturum yanıtı geçersiz.');
       await saveSession(session);
       setStep('welcome');
     } catch (error) {
@@ -189,7 +189,7 @@ export default function App() {
     try {
       const session = sessionRef.current;
       if (session) {
-        await fetch(`${API_URL}/api/mobile/auth/signout`, { method: 'POST', headers: { Authorization: `Bearer ${session.refreshToken}` } });
+        await fetch(`${API_URL}/api/mobile/auth/signout`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` } }).catch(() => {});
       }
       sessionRef.current = null;
       await SecureStore.deleteItemAsync(SESSION_KEY);
