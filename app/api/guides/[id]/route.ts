@@ -3,6 +3,7 @@ import { ObjectId } from 'mongodb';
 import { NextRequest, NextResponse } from 'next/server';
 import { getGuidePhotoContainer } from '@/lib/azure-storage';
 import { getDatabase } from '@/lib/mongodb';
+import { normalizePhone } from '@/lib/mobile-auth';
 import { getViewer } from '@/lib/viewer';
 
 export const runtime = 'nodejs';
@@ -25,10 +26,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const lastName = String(form.get('lastName') || '').trim();
   const phone = String(form.get('phone') || '').trim();
   const phoneDigits = phone.replace(/\D/g, '');
+  const phoneNormalized = normalizePhone(phone);
   const photo = form.get('photo');
 
   if (firstName.length < 2 || firstName.length > 80 || lastName.length < 2 || lastName.length > 80 ||
-      !/^[+\d() .-]{7,20}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15) {
+      !/^[+\d() .-]{7,20}$/.test(phone) || phoneDigits.length < 7 || phoneDigits.length > 15 || !phoneNormalized) {
     return NextResponse.json({ error: 'Ad, soyad ve telefon bilgilerini kontrol edin.' }, { status: 400 });
   }
 
@@ -61,7 +63,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const result = await guides.updateOne(
       { ...filter, photoBlobName: existing.photoBlobName },
-      { $set: { firstName, lastName, phone, ...(newBlobName ? { photoBlobName: newBlobName } : {}), updatedAt: new Date() } },
+      { $set: { firstName, lastName, phone, phoneNormalized, ...(newBlobName ? { photoBlobName: newBlobName } : {}), updatedAt: new Date() } },
     );
     if (!result.matchedCount) {
       if (newBlobName) await getGuidePhotoContainer().deleteBlob(newBlobName).catch(() => {});
