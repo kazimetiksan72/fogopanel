@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { OneSignal } from 'react-native-onesignal';
 import {
   ActivityIndicator,
   AppState,
@@ -24,6 +25,7 @@ type MobileSession = { token: string; expiresAt: string; user: { id: string; rol
 type Country = { flag: string; name: string; code: string };
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
+const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID;
 const SESSION_KEY = 'fogo.mobile.session';
 const countries: Country[] = [
   { flag: '🇹🇷', name: 'Türkiye', code: '+90' }, { flag: '🇺🇸', name: 'ABD', code: '+1' },
@@ -125,6 +127,23 @@ export default function App() {
   const sessionRef = useRef<MobileSession | null>(null);
   const refreshInFlight = useRef(false);
 
+  useEffect(() => {
+    if (ONESIGNAL_APP_ID) OneSignal.initialize(ONESIGNAL_APP_ID);
+  }, []);
+
+  async function connectPushUser(session: MobileSession) {
+    if (!ONESIGNAL_APP_ID) return;
+    try {
+      OneSignal.login(session.user.id);
+      OneSignal.User.addTag('role', session.user.role);
+      if (await OneSignal.Notifications.canRequestPermission()) {
+        await OneSignal.Notifications.requestPermission(false);
+      }
+    } catch (error) {
+      console.warn('OneSignal kaydı tamamlanamadı:', error);
+    }
+  }
+
   async function saveSession(session: MobileSession) {
     sessionRef.current = session;
     await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
@@ -142,6 +161,7 @@ export default function App() {
           const session = await refreshSession(previous.token);
           if (!session.token || !session.user?.id || !session.user?.role) throw new Error('Oturum yanıtı geçersiz.');
           await saveSession(session);
+          void connectPushUser(session);
           if (mounted) {
             setRole(session.user.role);
             const phoneInfo = phoneParts(session.user.phone);
@@ -232,6 +252,7 @@ export default function App() {
       if (!session.token || !session.user?.id || session.user.role !== role) throw new Error('Oturum yanıtı geçersiz.');
       await saveSession(session);
       setStep('welcome');
+      void connectPushUser(session);
     } catch (error) {
       Alert.alert('Giriş yapılamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
     } finally {
@@ -242,6 +263,7 @@ export default function App() {
   async function signOut() {
     try {
       const session = sessionRef.current;
+      if (ONESIGNAL_APP_ID) OneSignal.logout();
       if (session) {
         await fetch(`${API_URL}/api/mobile/auth/signout`, { method: 'POST', headers: { Authorization: `Bearer ${session.token}` } }).catch(() => {});
       }
