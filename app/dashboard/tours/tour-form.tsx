@@ -12,7 +12,7 @@ export default function TourForm({ agencies, lockedAgencyId }: { agencies: Agenc
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '', type: '' });
+  const [form, setForm] = useState({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '', type: 'individual' });
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +33,7 @@ export default function TourForm({ agencies, lockedAgencyId }: { agencies: Agenc
       const data = await response.json();
       if (!response.ok) { setError(data.error || 'Tur eklenemedi.'); return; }
       setOpen(false);
-      setForm({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '', type: '' });
+      setForm({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '', type: 'individual' });
       router.refresh();
     } catch { setError('Bağlantı kurulamadı. Lütfen tekrar deneyin.'); }
     finally { setSaving(false); }
@@ -51,7 +51,6 @@ export default function TourForm({ agencies, lockedAgencyId }: { agencies: Agenc
             <div className="field"><label htmlFor="tourStartDate">Başlama Tarihi</label><input id="tourStartDate" type="date" value={form.startDate} onChange={(event) => setForm({ ...form, startDate: event.target.value })} required /></div>
             <div className="field"><label htmlFor="tourEndDate">Bitiş Tarihi</label><input id="tourEndDate" type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => setForm({ ...form, endDate: event.target.value })} required /></div>
           </div>
-          <div className="field"><label htmlFor="tourType">Tur Tipi</label><select id="tourType" value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })} required><option value="">Tur tipi seçin</option><option value="corporate">Kurumsal</option><option value="individual">Bireysel</option></select></div>
           {error && <p className="form-error" role="alert">{error}</p>}
           <div className="modal-actions"><button className="cancel-button" type="button" onClick={close} disabled={saving}>İptal</button><button className="save-button" type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Tur ekle'}</button></div>
         </form>
