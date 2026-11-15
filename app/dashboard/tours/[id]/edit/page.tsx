@@ -13,7 +13,6 @@ type Tour = {
   guideId?: ObjectId | null;
   startDate: Date;
   endDate: Date;
-  type: 'corporate' | 'individual';
   dayPlans?: { date: string; visits: { placeId: string; note?: string }[] }[];
 };
 
@@ -51,7 +50,6 @@ export default async function TourEditPage({ params }: { params: Promise<{ id: s
         guideId: tour.guideId?.toString() || '',
         startDate: tour.startDate.toISOString().slice(0, 10),
         endDate: tour.endDate.toISOString().slice(0, 10),
-        type: tour.type,
       }}
       agencies={agencies.map((agency) => ({ id: agency._id.toString(), name: agency.name }))}
       guides={guides.map((guide) => ({ id: guide._id.toString(), name: `${guide.firstName} ${guide.lastName}`.trim() }))}

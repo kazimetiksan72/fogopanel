@@ -8,10 +8,12 @@ import AgencyCombobox from '../../agency-combobox';
 import SortableVisitRow, { type PlaceContact } from './sortable-visit-row';
 import VisitEditorModal, { type VisitDraft } from './visit-editor-modal';
 import type { PlacePhoto } from './place-photo-carousel';
+import TourParticipantsPanel from './tour-participants-panel';
 
 type AgencyOption = { id: string; name: string };
 type GuideOption = { id: string; name: string };
-type TourFields = { name: string; agencyId: string; guideId: string; startDate: string; endDate: string; type: 'corporate' | 'individual' };
+type TourFields = { name: string; agencyId: string; guideId: string; startDate: string; endDate: string };
+type EditTab = 'info' | 'days' | 'participants';
 type Visit = { key: string; placeId: string; placeName?: string; photos?: PlacePhoto[]; contact?: PlaceContact; note: string };
 type DayPlan = { date: string; visits: Visit[] };
 type SavedDayPlan = { date: string; visits: { placeId: string; note?: string }[] };
@@ -41,6 +43,7 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<EditTab>('info');
   const [visitEditor, setVisitEditor] = useState<VisitDraft | null>(null);
   const [dayPlans, setDayPlans] = useState<DayPlan[]>(() => initialDayPlans.map((plan) => ({
     date: plan.date,
@@ -79,6 +82,11 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
+    if (form.name.trim().length < 2 || form.name.trim().length > 120 || !days.length) {
+      setActiveTab('info');
+      setError('Tur adını ve başlangıç/bitiş tarihlerini kontrol edin.');
+      return;
+    }
     const visibleDates = new Set(days.map((day) => day.toISOString().slice(0, 10)));
     const plansToSave = dayPlans.filter((plan) => visibleDates.has(plan.date) && plan.visits.length)
       .map((plan) => ({ date: plan.date, visits: plan.visits.map(({ placeId, note }) => ({ placeId, note })) }));
@@ -117,7 +125,38 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
     event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
   }
 
-  return <form className="tour-edit-form" onSubmit={submit}>
+  function moveEditTab(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    const tabs: EditTab[] = ['info', 'days', 'participants'];
+    const next = event.key === 'ArrowRight' ? Math.min(index + 1, tabs.length - 1)
+      : event.key === 'ArrowLeft' ? Math.max(index - 1, 0)
+        : event.key === 'Home' ? 0
+          : event.key === 'End' ? tabs.length - 1 : null;
+    if (next === null) return;
+    event.preventDefault();
+    setActiveTab(tabs[next]);
+    event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+  }
+
+  return <form className="tour-edit-form" onSubmit={submit} noValidate>
+    <div className="tour-edit-tabs" role="tablist" aria-label="Tur düzenleme bölümleri">
+      {([
+        ['info', 'Tur Bilgileri'],
+        ['days', 'Tur Günleri'],
+        ['participants', 'Katılımcılar'],
+      ] as const).map(([tab, label], index) => <button
+        key={tab}
+        type="button"
+        role="tab"
+        id={`tour-edit-tab-${tab}`}
+        aria-selected={activeTab === tab}
+        aria-controls={`tour-edit-panel-${tab}`}
+        tabIndex={activeTab === tab ? 0 : -1}
+        className={`tour-edit-tab${activeTab === tab ? ' active' : ''}`}
+        onClick={() => setActiveTab(tab)}
+        onKeyDown={(event) => moveEditTab(event, index)}
+      >{label}</button>)}
+    </div>
+    <div id="tour-edit-panel-info" role="tabpanel" aria-labelledby="tour-edit-tab-info" hidden={activeTab !== 'info'}>
     <div className="tour-edit-card">
       <div className="tour-edit-card-heading"><h2>Tur Bilgileri</h2></div>
       <div className="tour-edit-fields user-form">
@@ -128,9 +167,10 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
           <div className="field"><label htmlFor="editTourStartDate">Başlama Tarihi</label><input id="editTourStartDate" type="date" value={form.startDate} onChange={(event) => update('startDate', event.target.value)} required /></div>
           <div className="field"><label htmlFor="editTourEndDate">Bitiş Tarihi</label><input id="editTourEndDate" type="date" min={form.startDate || undefined} value={form.endDate} onChange={(event) => update('endDate', event.target.value)} required /></div>
         </div>
-        <div className="field"><label htmlFor="editTourType">Tur Tipi</label><select id="editTourType" value={form.type} onChange={(event) => update('type', event.target.value as TourFields['type'])} required><option value="corporate">Kurumsal</option><option value="individual">Bireysel</option></select></div>
       </div>
     </div>
+    </div>
+    <div id="tour-edit-panel-days" role="tabpanel" aria-labelledby="tour-edit-tab-days" hidden={activeTab !== 'days'}>
     <section className="tour-days-card" aria-label="Tur günleri">
       <div className="tour-days-heading"><h2>Tur Günleri</h2><span>{days.length} gün</span></div>
       {days.length ? <>
@@ -174,9 +214,13 @@ export default function TourEditForm({ id, initial, agencies, guides, lockedAgen
         </div>
       </> : <p className="tour-days-empty">Günleri görmek için geçerli bir başlangıç ve bitiş tarihi seçin.</p>}
     </section>
-    {error && <p className="form-error tour-edit-feedback" role="alert">{error}</p>}
-    {saved && <p className="profile-success tour-edit-feedback" role="status">Tur bilgileri kaydedildi.</p>}
-    <div className="tour-edit-actions"><button className="save-button" type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button></div>
+    </div>
+    {activeTab === 'participants' && <TourParticipantsPanel tourId={id} />}
+    {activeTab !== 'participants' && <>
+      {error && <p className="form-error tour-edit-feedback" role="alert">{error}</p>}
+      {saved && <p className="profile-success tour-edit-feedback" role="status">Tur bilgileri kaydedildi.</p>}
+      <div className="tour-edit-actions"><button className="save-button" type="submit" disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button></div>
+    </>}
     {visitEditor && <VisitEditorModal key={`${visitEditor.date}-${visitEditor.key || 'new'}`} initial={visitEditor} onSave={saveVisit} onClose={() => setVisitEditor(null)} />}
   </form>;
 }
