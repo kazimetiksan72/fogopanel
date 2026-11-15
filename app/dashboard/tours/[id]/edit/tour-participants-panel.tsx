@@ -178,7 +178,7 @@ export default function TourParticipantsPanel({ tourId }: { tourId: string }) {
                     <button className="tour-participant-icon-button subtle" type="button" disabled={saving} onClick={() => setEditingId(null)}>İptal</button>
                   </td>
                 </> : <>
-                  <td>{participant.fullName}</td><td>{participant.phone}</td>
+                  <td>{participant.fullName}</td><td>{participant.phone.replace(/^\+/, '')}</td>
                   <td className="tour-participant-row-actions"><button className="tour-participant-icon-button" type="button" aria-label={`${participant.fullName} katılımcısını düzenle`} onClick={() => startEdit(participant)}>Düzenle</button></td>
                 </>}
               </tr>)}
