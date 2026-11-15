@@ -2,6 +2,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { OneSignal } from 'react-native-onesignal';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import QRCode from 'react-native-qrcode-svg';
 import {
   ActivityIndicator,
   AppState,
@@ -20,8 +22,12 @@ import {
 } from 'react-native';
 
 type Role = 'participant' | 'guide';
-type Step = 'restoring' | 'phone' | 'code' | 'welcome';
-type MobileSession = { token: string; expiresAt: string; user: { id: string; role: Role; phone: string } };
+type Step = 'restoring' | 'phone' | 'code' | 'profile' | 'welcome';
+type MobileSession = { token: string; expiresAt: string; user: { id: string; role: Role; phone: string; fullName?: string } };
+type TourSummary = { id: string; name: string; startDate: string; endDate: string; dayCount?: number };
+type TourDetail = TourSummary & { dayPlans: { date: string; visits: { placeId: string; note?: string }[] }[]; participantCount: number };
+type VerifyResult = MobileSession | { profileRequired: true };
+type AppScreen = 'home' | 'guideDetail' | 'scanner';
 type Country = { flag: string; name: string; code: string };
 
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
@@ -79,6 +85,15 @@ function phoneParts(value: string) {
   return { code: '+90', phone: digits.replace(/^90/, '').replace(/^0/, '') };
 }
 
+function formatTourDates(tour: Pick<TourSummary, 'startDate' | 'endDate'>) {
+  if (!tour.startDate) return 'Tarih belirtilmedi';
+  const date = (value: string) => {
+    const [year, month, day] = value.split('-').map(Number);
+    return new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(year, month - 1, day));
+  };
+  return tour.startDate === tour.endDate ? date(tour.startDate) : `${date(tour.startDate)} – ${date(tour.endDate)}`;
+}
+
 async function requestCode(phone: string, role: Role) {
   const response = await fetch(`${API_URL}/api/mobile/auth/request-code`, {
     method: 'POST',
@@ -90,15 +105,29 @@ async function requestCode(phone: string, role: Role) {
   return result;
 }
 
-async function verifyCode(phone: string, role: Role, code: string) {
+async function verifyCode(phone: string, role: Role, code: string, fullName?: string) {
   const response = await fetch(`${API_URL}/api/mobile/auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, role, code }),
+    body: JSON.stringify({ phone, role, code, ...(fullName ? { fullName } : {}) }),
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Kod doğrulanamadı.');
-  return result as MobileSession;
+  return result as VerifyResult;
+}
+
+async function getMobileTours(token: string) {
+  const response = await fetch(`${API_URL}/api/mobile/tours`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Turlar yüklenemedi.');
+  return result.tours as TourSummary[];
+}
+
+async function getGuideTour(token: string, id: string) {
+  const response = await fetch(`${API_URL}/api/mobile/tours/${id}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || 'Tur ayrıntıları yüklenemedi.');
+  return result.tour as TourDetail;
 }
 
 async function refreshSession(token: string) {
@@ -119,13 +148,22 @@ export default function App() {
   const [role, setRole] = useState<Role>('participant');
   const [step, setStep] = useState<Step>('restoring');
   const [phone, setPhone] = useState('');
+  const [profileName, setProfileName] = useState('');
+  const [userName, setUserName] = useState('');
   const [countryCode, setCountryCode] = useState('+90');
   const [countryPickerOpen, setCountryPickerOpen] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [restoreError, setRestoreError] = useState('');
+  const [screen, setScreen] = useState<AppScreen>('home');
+  const [tours, setTours] = useState<TourSummary[]>([]);
+  const [selectedTour, setSelectedTour] = useState<TourDetail | null>(null);
+  const [qrCode, setQrCode] = useState('');
+  const [qrVisible, setQrVisible] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const sessionRef = useRef<MobileSession | null>(null);
   const refreshInFlight = useRef(false);
+  const scanInFlight = useRef(false);
 
   useEffect(() => {
     if (ONESIGNAL_APP_ID) OneSignal.initialize(ONESIGNAL_APP_ID);
@@ -161,13 +199,16 @@ export default function App() {
           const session = await refreshSession(previous.token);
           if (!session.token || !session.user?.id || !session.user?.role) throw new Error('Oturum yanıtı geçersiz.');
           await saveSession(session);
-          void connectPushUser(session);
           if (mounted) {
             setRole(session.user.role);
+            setUserName(session.user.fullName || '');
             const phoneInfo = phoneParts(session.user.phone);
             setCountryCode(phoneInfo.code);
             setPhone(phoneInfo.phone);
+            setScreen('home');
+            setTours(await getMobileTours(session.token).catch(() => []));
             setStep('welcome');
+            void connectPushUser(session);
           }
         } catch (error) {
           if ((error as Error & { status?: number }).status === 401) {
@@ -223,6 +264,17 @@ export default function App() {
     setPhone((current) => country.code === '+90' ? formatTurkishPhone(current) : current.replace(/\D/g, ''));
   }
 
+  async function finishLogin(session: MobileSession) {
+    await saveSession(session);
+    setRole(session.user.role);
+    setUserName(session.user.fullName || '');
+    setScreen('home');
+    setSelectedTour(null);
+    setTours(await getMobileTours(session.token).catch(() => []));
+    setStep('welcome');
+    void connectPushUser(session);
+  }
+
   async function sendCode() {
     const internationalPhone = toInternationalPhone(countryCode, phone);
     const digits = internationalPhone.replace(/\D/g, '');
@@ -241,23 +293,90 @@ export default function App() {
     }
   }
 
-  async function signIn() {
+  async function signIn(fullName?: string) {
     if (code.length !== 6) {
       Alert.alert('Doğrulama kodu', '6 haneli kodu girin.');
       return;
     }
     setBusy(true);
     try {
-      const session = await verifyCode(toInternationalPhone(countryCode, phone), role, code);
+      const result = await verifyCode(toInternationalPhone(countryCode, phone), role, code, fullName);
+      if ('profileRequired' in result) {
+        setStep('profile');
+        return;
+      }
+      const session = result;
       if (!session.token || !session.user?.id || session.user.role !== role) throw new Error('Oturum yanıtı geçersiz.');
-      await saveSession(session);
-      setStep('welcome');
-      void connectPushUser(session);
+      await finishLogin(session);
     } catch (error) {
       Alert.alert('Giriş yapılamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
     } finally {
       setBusy(false);
     }
+  }
+
+  async function openScanner() {
+    if (!cameraPermission?.granted) {
+      const permission = await requestCameraPermission();
+      if (!permission.granted) {
+        Alert.alert('Kamera izni gerekli', 'Tura katılmak için kamera erişimine izin verin.');
+        return;
+      }
+    }
+    scanInFlight.current = false;
+    setScreen('scanner');
+  }
+
+  async function handleQrScanned(value: string) {
+    if (scanInFlight.current) return;
+    scanInFlight.current = true;
+    try {
+      const session = sessionRef.current;
+      if (!session) throw new Error('Oturum açmanız gerekiyor.');
+      const response = await fetch(`${API_URL}/api/mobile/tours/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.token}` },
+        body: JSON.stringify({ qrCode: value }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Tura katılım tamamlanamadı.');
+      setScreen('home');
+      setTours(await getMobileTours(session.token));
+      Alert.alert(result.alreadyJoined ? 'Tur zaten listende' : 'Tura katıldın', result.tour?.name || 'Tur listen güncellendi.');
+    } catch (error) {
+      setScreen('home');
+      Alert.alert('QR kod okunamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
+    }
+  }
+
+  async function openGuideTour(tour: TourSummary) {
+    const session = sessionRef.current;
+    if (!session) return;
+    setBusy(true);
+    try {
+      setSelectedTour(await getGuideTour(session.token, tour.id));
+      setQrCode('');
+      setScreen('guideDetail');
+    } catch (error) {
+      Alert.alert('Tur açılamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
+    } finally { setBusy(false); }
+  }
+
+  async function createTourQr() {
+    const session = sessionRef.current;
+    if (!session || !selectedTour) return;
+    setBusy(true);
+    try {
+      const response = await fetch(`${API_URL}/api/mobile/tours/${selectedTour.id}/qr`, {
+        method: 'POST', headers: { Authorization: `Bearer ${session.token}` },
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'QR kod oluşturulamadı.');
+      setQrCode(result.qrCode);
+      setQrVisible(true);
+    } catch (error) {
+      Alert.alert('QR kod oluşturulamadı', error instanceof Error ? error.message : 'Tekrar deneyin.');
+    } finally { setBusy(false); }
   }
 
   async function signOut() {
@@ -291,26 +410,53 @@ export default function App() {
           </View>
 
           <View style={styles.hero}>
-            {(step === 'welcome' || step === 'code' || (step === 'phone' && isGuide)) && <Text style={styles.title}>{step === 'welcome' ? 'Harika,\nhazırsın.' : step === 'code' ? 'Telefonunu\ndoğrula.' : 'Rehber girişi'}</Text>}
-            {(step === 'welcome' || step === 'code') && (
-              <Text style={styles.subtitle}>
-                {step === 'welcome'
-                  ? `${isGuide ? 'Rehber' : 'Katılımcı'} olarak giriş yaptın.`
-                  : step === 'code'
-                    ? `${countryCode} ${phone} numarası için 6 haneli kodu gir.`
-                  : ''}
-              </Text>
-            )}
+            {(step === 'code' || step === 'profile' || (step === 'phone' && isGuide)) && <Text style={styles.title}>{step === 'code' ? 'Telefonunu\ndoğrula.' : step === 'profile' ? 'Seni tanıyalım.' : 'Rehber girişi'}</Text>}
+            {step === 'code' && <Text style={styles.subtitle}>{countryCode} {phone} numarası için 6 haneli kodu gir.</Text>}
+            {step === 'profile' && <Text style={styles.subtitle}>Tur listende görünmesi için ad soyad bilgini ekle.</Text>}
           </View>
 
           {step === 'restoring' ? <ActivityIndicator color="#d95734" size="large" /> : step === 'welcome' ? (
-            <View style={styles.successCard}>
-              <View style={styles.successIcon}><Text style={styles.successCheck}>✓</Text></View>
-              <Text style={styles.successTitle}>Giriş başarılı</Text>
-              <Text style={styles.successBody}>{toInternationalPhone(countryCode, phone)}</Text>
-              <Pressable style={styles.secondaryButton} onPress={signOut}>
-                <Text style={styles.secondaryButtonText}>Çıkış yap</Text>
+            screen === 'scanner' ? <View style={styles.homePanel}>
+              <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Tur QR kodunu okut</Text><Pressable onPress={() => setScreen('home')}><Text style={styles.backText}>Kapat</Text></Pressable></View>
+              <View style={styles.cameraFrame}>
+                <CameraView style={styles.camera} facing="back" barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data }) => { void handleQrScanned(data); }} />
+                <View pointerEvents="none" style={styles.cameraGuide} />
+              </View>
+              <Text style={styles.helper}>Rehberin tur için oluşturduğu QR kodu çerçevenin içine getirin.</Text>
+            </View> : screen === 'guideDetail' && selectedTour ? <View style={styles.homePanel}>
+              <Pressable style={styles.backButton} onPress={() => { setScreen('home'); setQrCode(''); }}><Text style={styles.backText}>‹ Turlarıma dön</Text></Pressable>
+              <Text style={styles.sectionTitle}>{selectedTour.name}</Text>
+              <Text style={styles.tourDates}>{formatTourDates(selectedTour)}</Text>
+              <View style={styles.tourStats}><Text style={styles.tourStat}>{selectedTour.participantCount} katılımcı</Text><Text style={styles.tourStat}>{selectedTour.dayPlans.length} tur günü</Text></View>
+              {selectedTour.dayPlans.map((day, index) => <View style={styles.detailDay} key={`${day.date}-${index}`}>
+                <Text style={styles.detailDayTitle}>{formatTourDates({ startDate: day.date, endDate: day.date })}</Text>
+                {day.visits.length ? day.visits.map((visit, visitIndex) => <MobileTourVisit key={`${visit.placeId}-${visitIndex}`} visit={visit} token={sessionRef.current?.token || ''} index={visitIndex} />)
+                  : <Text style={styles.detailDayBody}>Ziyaret noktası eklenmemiş</Text>}
+              </View>)}
+              <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={createTourQr}>
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>QR kod oluştur <Text style={styles.arrow}>→</Text></Text>}
               </Pressable>
+            </View> : <View style={styles.homePanel}>
+              {!isGuide ? <>
+                <Text style={styles.welcomeHeading}>Hoşgeldiniz</Text>
+                <Text style={styles.welcomeName}>{userName || 'Katılımcı'}</Text>
+                <Pressable style={[styles.primaryButton, styles.joinTourButton]} onPress={() => { void openScanner(); }}>
+                  <Text style={styles.primaryButtonText}>Tura Katıl <Text style={styles.arrow}>→</Text></Text>
+                </Pressable>
+                <Text style={styles.sectionTitle}>Turlarım</Text>
+                {tours.length ? tours.map((tour) => <View key={tour.id} style={styles.tourCard}>
+                  <Text style={styles.tourCardTitle}>{tour.name}</Text><Text style={styles.tourDates}>{formatTourDates(tour)}</Text>
+                </View>) : <Text style={styles.emptyText}>Henüz bir tura katılmadınız.</Text>}
+              </> : <>
+                <Text style={styles.welcomeHeading}>Merhaba</Text>
+                <Text style={styles.welcomeName}>{userName || 'Rehber'}</Text>
+                <Text style={styles.sectionTitle}>Turlarım</Text>
+                {tours.length ? tours.map((tour) => <Pressable key={tour.id} style={styles.tourCard} onPress={() => { void openGuideTour(tour); }}>
+                  <View style={styles.tourCardRow}><Text style={styles.tourCardTitle}>{tour.name}</Text><Text style={styles.tourArrow}>›</Text></View>
+                  <Text style={styles.tourDates}>{formatTourDates(tour)}</Text><Text style={styles.tourDayCount}>{tour.dayCount || 0} tur günü</Text>
+                </Pressable>) : <Text style={styles.emptyText}>Size atanmış tur bulunmuyor.</Text>}
+              </>}
+              <Pressable style={styles.secondaryButton} onPress={signOut}><Text style={styles.secondaryButtonText}>Çıkış yap</Text></Pressable>
             </View>
           ) : (
             <View style={styles.formCard}>
@@ -356,7 +502,7 @@ export default function App() {
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Kod gönder <Text style={styles.arrow}>→</Text></Text>}
                   </Pressable>
                 </>
-              ) : (
+              ) : step === 'code' ? (
                 <>
                   <Text style={styles.label}>6 HANELİ KOD</Text>
                   <TextInput
@@ -377,9 +523,30 @@ export default function App() {
                   </Pressable>
                   <Pressable style={styles.backButton} onPress={() => { setStep('phone'); setCode(''); }}><Text style={styles.backText}>← Telefon numarasını değiştir</Text></Pressable>
                 </>
+              ) : (
+                <>
+                  <Text style={styles.label}>AD SOYAD</Text>
+                  <TextInput value={profileName} onChangeText={setProfileName} autoCapitalize="words" autoComplete="name" placeholder="Ad Soyad" placeholderTextColor="#a9ada8" style={styles.profileNameInput} accessibilityLabel="Ad Soyad" maxLength={160} returnKeyType="done" />
+                  <Text style={styles.helper}>Telefon numaran doğrulandı. Katılımcı profilini tamamlamak için ad soyadını yaz.</Text>
+                  <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={() => { void signIn(profileName); }}>
+                    {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Hesabı oluştur <Text style={styles.arrow}>→</Text></Text>}
+                  </Pressable>
+                </>
               )}
             </View>
           )}
+
+          <Modal visible={qrVisible} transparent animationType="fade" onRequestClose={() => setQrVisible(false)}>
+            <Pressable style={styles.qrModalBackdrop} onPress={() => setQrVisible(false)}>
+              <Pressable style={styles.qrModalCard} onPress={(event) => event.stopPropagation()}>
+                <Text style={styles.qrModalTitle}>Tur katılım QR kodu</Text>
+                <Text style={styles.qrModalSubtitle}>{selectedTour?.name}</Text>
+                {qrCode ? <QRCode value={qrCode} size={220} backgroundColor="#ffffff" color="#18231e" /> : null}
+                <Text style={styles.qrModalHint}>Katılımcılar bu kodu uygulamalarından okutarak tura katılabilir. Basılı kopya için ekran görüntüsü alın.</Text>
+                <Pressable style={styles.secondaryButton} onPress={() => setQrVisible(false)}><Text style={styles.secondaryButtonText}>Kapat</Text></Pressable>
+              </Pressable>
+            </Pressable>
+          </Modal>
 
           {step !== 'welcome' && step !== 'restoring' && <Text style={styles.privacy}>Devam ederek <Text style={styles.privacyLink}>Kullanım Koşulları</Text> ve <Text style={styles.privacyLink}>Gizlilik Politikası</Text>’nı kabul etmiş olursun.</Text>}
           <View style={styles.footer}><View style={styles.footerLine} /><Text style={styles.footerText}>GÜZEL YOLCULUKLAR BURADA BAŞLAR</Text><View style={styles.footerLine} /></View>
@@ -387,6 +554,26 @@ export default function App() {
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+function MobileTourVisit({ visit, token, index }: { visit: { placeId: string; note?: string }; token: string; index: number }) {
+  const [place, setPlace] = useState<{ name: string; address: string } | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetch(`${API_URL}/api/mobile/places/${encodeURIComponent(visit.placeId)}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (response) => {
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Yer yüklenemedi.');
+        if (active) setPlace({ name: result.name, address: result.address || '' });
+      })
+      .catch(() => { if (active) setPlace({ name: 'Yer bilgisi alınamadı', address: '' }); });
+    return () => { active = false; };
+  }, [token, visit.placeId]);
+  return <View style={styles.mobileTourVisit}>
+    <Text style={styles.mobileTourVisitTitle}>{index + 1}. {place?.name || 'Yer bilgisi yükleniyor…'}</Text>
+    {place?.address ? <Text style={styles.detailDayBody}>{place.address}</Text> : null}
+    {visit.note ? <Text style={styles.detailDayBody}>{visit.note}</Text> : null}
+  </View>;
 }
 
 const styles = StyleSheet.create({
@@ -421,6 +608,7 @@ const styles = StyleSheet.create({
   countryOptionName: { flex: 1, color: '#303b35', fontSize: 14 },
   countryOptionCode: { color: '#778078', fontSize: 13, fontWeight: '600' },
   helper: { color: '#959b94', fontSize: 12, marginTop: 12, marginBottom: 22 },
+  profileNameInput: { height: 56, borderWidth: 1, borderColor: '#e0e2dc', borderRadius: 12, paddingHorizontal: 14, color: '#303b35', fontSize: 16 },
   primaryButton: { minHeight: 56, borderRadius: 12, backgroundColor: '#d95734', alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.65 },
   primaryButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
@@ -429,6 +617,34 @@ const styles = StyleSheet.create({
   resend: { color: '#d95734', fontWeight: '700' },
   backButton: { alignItems: 'center', marginTop: 17 },
   backText: { color: '#737b74', fontSize: 13 },
+  homePanel: { padding: 22, borderRadius: 20, backgroundColor: '#fffefa', borderWidth: 1, borderColor: '#e9e8e1', shadowColor: '#314039', shadowOpacity: 0.04, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
+  welcomeHeading: { color: '#26322d', fontSize: 27, lineHeight: 34, fontWeight: '700' },
+  welcomeName: { color: '#d95734', fontSize: 25, lineHeight: 32, fontWeight: '700', marginBottom: 22 },
+  joinTourButton: { marginBottom: 28 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  sectionTitle: { color: '#26322d', fontSize: 19, lineHeight: 26, fontWeight: '700', marginTop: 4, marginBottom: 14 },
+  tourCard: { borderWidth: 1, borderColor: '#eceae4', borderRadius: 13, padding: 15, marginBottom: 10, backgroundColor: '#fff' },
+  tourCardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  tourCardTitle: { flex: 1, color: '#26322d', fontSize: 15, fontWeight: '700' },
+  tourArrow: { color: '#d95734', fontSize: 26 },
+  tourDates: { color: '#788078', fontSize: 12, marginTop: 7 },
+  tourDayCount: { color: '#a0a59e', fontSize: 11, marginTop: 5 },
+  emptyText: { color: '#959b94', fontSize: 13, lineHeight: 20, marginBottom: 18 },
+  tourStats: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  tourStat: { color: '#69756b', fontSize: 12, fontWeight: '600', backgroundColor: '#f1f3ed', borderRadius: 7, paddingHorizontal: 10, paddingVertical: 7 },
+  detailDay: { borderTopWidth: 1, borderTopColor: '#efeee9', paddingVertical: 12 },
+  detailDayTitle: { color: '#35413a', fontSize: 13, fontWeight: '700' },
+  detailDayBody: { color: '#90978f', fontSize: 12, marginTop: 5 },
+  mobileTourVisit: { borderTopWidth: 1, borderTopColor: '#f2f0eb', paddingVertical: 9 },
+  mobileTourVisitTitle: { color: '#35413a', fontSize: 13, fontWeight: '600' },
+  cameraFrame: { width: '100%', height: 420, overflow: 'hidden', borderRadius: 16, backgroundColor: '#1b251f' },
+  camera: { flex: 1 },
+  cameraGuide: { position: 'absolute', width: 220, height: 220, left: '50%', top: '50%', marginLeft: -110, marginTop: -110, borderWidth: 2, borderColor: '#fff', borderRadius: 20 },
+  qrModalBackdrop: { flex: 1, backgroundColor: '#10181480', justifyContent: 'center', padding: 24 },
+  qrModalCard: { alignItems: 'center', borderRadius: 20, backgroundColor: '#fffefa', padding: 24 },
+  qrModalTitle: { color: '#26322d', fontSize: 19, fontWeight: '700', textAlign: 'center' },
+  qrModalSubtitle: { color: '#747b75', fontSize: 13, textAlign: 'center', marginTop: 6, marginBottom: 20 },
+  qrModalHint: { color: '#8c938c', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 17, marginBottom: 19 },
   privacy: { marginTop: 20, textAlign: 'center', color: '#999e98', fontSize: 11, lineHeight: 18, paddingHorizontal: 10 },
   privacyLink: { color: '#6b746c', textDecorationLine: 'underline' },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginTop: 'auto', paddingTop: 40 },

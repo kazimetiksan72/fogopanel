@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
-import { accountStillMatches, mobileHash, readMobileToken, signMobileToken, type MobileSession } from '@/lib/mobile-auth';
+import { accountStillMatches, mobileHash, mobileSessionUser, readMobileToken, signMobileToken, type MobileSession } from '@/lib/mobile-auth';
 
 export const runtime = 'nodejs';
 
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       { $set: { jtiHash: mobileHash(`jti:${jti}`) } },
     );
     if (!rotated.matchedCount) return invalid();
-    return NextResponse.json({ token, expiresAt: session.expiresAt.toISOString(), user: { id: session.accountId, role: session.role, phone: session.phone } }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ token, expiresAt: session.expiresAt.toISOString(), user: await mobileSessionUser(db, session.role, session.accountId, session.phone) }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return NextResponse.json({ error: 'Oturum yenilenemedi.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
   }

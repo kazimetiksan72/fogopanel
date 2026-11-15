@@ -20,6 +20,14 @@
       }
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Fogo'da turlara QR kod okutarak katılmak için kameraya erişim izni verin.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-secure-store"
     ]
   }
