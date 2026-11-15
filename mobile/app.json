@@ -10,15 +10,24 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.etiksan.fogo-mobile",
+      "bundleIdentifier": "com.pikselmutfak.fogo",
       "appleTeamId": "WX99ZMN7BY"
     },
     "android": {
+      "package": "com.pikselmutfak.fogo",
       "adaptiveIcon": {
         "backgroundColor": "#f5f4ef"
       }
     },
     "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Fogo'da turlara QR kod okutarak katılmak için kameraya erişim izni verin.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       "expo-secure-store"
     ]
   }

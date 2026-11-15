@@ -28,7 +28,10 @@ export async function POST(request: Request) {
     ]);
     if (!phoneAllowed || !ipAllowed) return NextResponse.json({ error: 'Çok fazla deneme. Daha sonra tekrar deneyin.' }, { status: 429 });
 
-    const accountId = await findMobileAccount(db, phone, role);
+    const accountId = role === 'guide' ? await findMobileAccount(db, phone, role) : null;
+    if (role === 'guide' && !accountId) {
+      return NextResponse.json({ error: 'Bu telefon numarasıyla kayıtlı kullanıcı bulunamadı.' }, { status: 404 });
+    }
     const challengeId = mobileHash(`challenge:${role}:${phone}`);
     const nonce = randomUUID();
     const code = sms.createCode();

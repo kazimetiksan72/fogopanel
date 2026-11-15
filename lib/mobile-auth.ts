@@ -58,6 +58,25 @@ export async function findMobileAccount(db: Db, phone: string, role: MobileRole)
   return matches.length === 1 ? matches[0]._id : null;
 }
 
+export async function getMobileRequestContext(request: Request, expectedRole?: MobileRole) {
+  const match = /^Bearer ([A-Za-z0-9._-]+)$/.exec(request.headers.get('authorization') || '');
+  if (!match) return null;
+  const claims = await readMobileToken(match[1]);
+  if (!claims || (expectedRole && claims.role !== expectedRole)) return null;
+
+  const db = await getDatabase();
+  const sessions = db.collection<MobileSession & { _id: string }>('mobile_auth_sessions');
+  const session = await sessions.findOne({
+    _id: claims.sessionId,
+    accountId: claims.accountId,
+    role: claims.role,
+    jtiHash: claims.jtiHash,
+    expiresAt: { $gt: new Date() },
+  });
+  if (!session || !await accountStillMatches(db, session.accountId, session.phone, session.role)) return null;
+  return { db, session, accountId: session.accountId, role: session.role };
+}
+
 export async function accountStillMatches(db: Db, accountId: string, phone: string, role: MobileRole) {
   const id = ObjectId.isValid(accountId) ? new ObjectId(accountId) : accountId;
   const account = await db.collection<{ _id: ObjectId | string; phone?: string; phoneNormalized?: string; active?: boolean }>(role === 'guide' ? 'guides' : 'participants')
@@ -108,6 +127,14 @@ export async function signMobileToken(sessionId: string, session: MobileSession,
     .sign(signingKey());
 }
 
+export async function mobileSessionUser(db: Db, role: MobileRole, accountId: string, phone: string) {
+  const id = ObjectId.isValid(accountId) ? new ObjectId(accountId) : accountId;
+  const account = await db.collection<{ _id: ObjectId | string; fullName?: string; name?: string; firstName?: string; lastName?: string }>(role === 'guide' ? 'guides' : 'participants')
+    .findOne({ _id: id }, { projection: { fullName: 1, name: 1, firstName: 1, lastName: 1 } });
+  const fullName = account?.fullName || account?.name || [account?.firstName, account?.lastName].filter(Boolean).join(' ');
+  return { id: accountId, role, phone, ...(fullName ? { fullName } : {}) };
+}
+
 export async function createMobileSession(db: Db, role: MobileRole, accountId: string, phone: string) {
   const sessionId = randomUUID();
   const jti = randomUUID();
@@ -115,7 +142,7 @@ export async function createMobileSession(db: Db, role: MobileRole, accountId: s
   const session: MobileSession = { role, accountId, phone, expiresAt, jtiHash: mobileHash(`jti:${jti}`) };
   const token = await signMobileToken(sessionId, session, jti);
   await db.collection<MobileSession & { _id: string }>('mobile_auth_sessions').insertOne({ _id: sessionId, ...session });
-  return { token, expiresAt: expiresAt.toISOString(), user: { id: accountId, role, phone } };
+  return { token, expiresAt: expiresAt.toISOString(), user: await mobileSessionUser(db, role, accountId, phone) };
 }
 
 export async function readMobileToken(token: string) {
