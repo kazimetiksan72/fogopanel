@@ -24,7 +24,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   catch { return NextResponse.json({ error: 'Geçersiz istek.' }, { status: 400 }); }
   if (!body || typeof body !== 'object' || Array.isArray(body)) return NextResponse.json({ error: 'Geçersiz istek.' }, { status: 400 });
   const input = body as Record<string, unknown>;
-  if (Object.keys(input).some((key) => !['name', 'agencyId', 'guideId', 'startDate', 'endDate', 'type', 'dayPlans'].includes(key))) {
+  if (Object.keys(input).some((key) => !['name', 'agencyId', 'guideId', 'startDate', 'endDate', 'dayPlans'].includes(key))) {
     return NextResponse.json({ error: 'Geçersiz alan.' }, { status: 400 });
   }
 
@@ -35,12 +35,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const guideIdText = typeof input.guideId === 'string' ? input.guideId.trim() : '';
   const startDate = parseDate(input.startDate);
   const endDate = parseDate(input.endDate);
-  const typeProvided = Object.hasOwn(input, 'type');
-  const type = input.type;
   if (agencyIdText && !ObjectId.isValid(agencyIdText)) return NextResponse.json({ error: 'Geçersiz acente seçimi.' }, { status: 400 });
   if (guideIdText && !ObjectId.isValid(guideIdText)) return NextResponse.json({ error: 'Geçersiz rehber seçimi.' }, { status: 400 });
-  if (name.length < 2 || name.length > 120 || !startDate || !endDate || endDate < startDate ||
-      (typeProvided && type !== 'corporate' && type !== 'individual')) {
+  if (name.length < 2 || name.length > 120 || !startDate || !endDate || endDate < startDate) {
     return NextResponse.json({ error: 'Tur adı ve tarihleri kontrol edin.' }, { status: 400 });
   }
 
@@ -99,7 +96,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     const result = await db.collection('tours').updateOne(
       { _id: new ObjectId(id), ...(viewer.isAdmin ? {} : { createdByAgencyId: viewer.agencyId! }) },
-      { $set: { name, agencyId, ...(guideIdProvided ? { guideId } : {}), startDate, endDate, ...(typeProvided ? { type } : {}), ...(dayPlans ? { dayPlans } : {}), updatedAt: new Date() } },
+      { $set: { name, agencyId, ...(guideIdProvided ? { guideId } : {}), startDate, endDate, ...(dayPlans ? { dayPlans } : {}), updatedAt: new Date() }, $unset: { type: '' } },
     );
     if (!result.matchedCount) return NextResponse.json({ error: 'Tur bulunamadı.' }, { status: 404 });
     return NextResponse.json({ ok: true });

@@ -10,7 +10,7 @@ import TourForm from './tour-form';
 export const runtime = 'nodejs';
 
 type Agency = { name: string };
-type Tour = { name: string; agencyId?: ObjectId | null; startDate: Date; endDate: Date; type: 'corporate' | 'individual'; createdAt?: Date };
+type Tour = { name: string; agencyId?: ObjectId | null; startDate: Date; endDate: Date; createdAt?: Date };
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }).format(date);
@@ -32,8 +32,6 @@ export default async function ToursPage({ searchParams }: { searchParams: ListSe
   if (query) filter.$and = searchTerms(query).map((term) => ({ $or: [
     { name: term },
     { agencyId: { $in: agencies.filter((agency) => term.test(agency.name)).map((agency) => agency._id) } },
-    ...(term.test('Kurumsal') ? [{ type: 'corporate' as const }] : []),
-    ...(term.test('Bireysel') ? [{ type: 'individual' as const }] : []),
   ] }));
   const toursCollection = db.collection<Tour>('tours');
   const total = await toursCollection.countDocuments(filter);
@@ -47,13 +45,12 @@ export default async function ToursPage({ searchParams }: { searchParams: ListSe
     <ListSearch path="/dashboard/tours" query={query} placeholder="Tur ara" total={total} />
     <section className="users-card" aria-label="Tur listesi">
       {tours.length ? <div className="users-table-wrap"><table className="users-table tours-table">
-        <thead><tr><th>TUR ADI</th><th>ACENTE</th><th>BAŞLAMA</th><th>BİTİŞ</th><th>TUR TİPİ</th><th>İŞLEM</th></tr></thead>
+        <thead><tr><th>TUR ADI</th><th>ACENTE</th><th>BAŞLAMA</th><th>BİTİŞ</th><th>İŞLEM</th></tr></thead>
         <tbody>{tours.map((tour) => <tr key={tour._id.toString()}>
           <td className="table-primary"><Link className="tour-name-link" href={`/dashboard/tours/${tour._id.toString()}`}>{tour.name}</Link></td>
           <td>{agencyNames.get(tour.agencyId?.toString() || '') || '—'}</td>
           <td>{formatDate(tour.startDate)}</td>
           <td>{formatDate(tour.endDate)}</td>
-          <td><span className="tour-type">{tour.type === 'corporate' ? 'Kurumsal' : 'Bireysel'}</span></td>
           <td><Link className="edit-icon-button" href={`/dashboard/tours/${tour._id.toString()}/edit`} aria-label={`${tour.name} turunu düzenle`} title="Turu düzenle"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L9 17l-4 1 1-4L16.5 3.5Z"/></svg></Link></td>
         </tr>)}</tbody>
       </table></div> : <div className="users-empty"><span>◇</span><h3>{query ? 'Sonuç bulunamadı' : 'Henüz tur yok'}</h3><p>{query ? 'Arama terimini değiştirip tekrar deneyin.' : 'İlk turu eklemek için sağ üstteki butonu kullanın.'}</p></div>}

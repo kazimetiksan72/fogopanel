@@ -265,7 +265,6 @@
 .users-table td { height: 73px; border-top: 1px solid #f0f1f3; font-size: 13px; color: #2d3440; }
 .table-primary { font-weight: 700; }
 .table-address { color: #69727d !important; line-height: 1.5; padding-top: 12px; padding-bottom: 12px; }
-.tour-type { display: inline-flex; padding: 6px 10px; border-radius: 7px; background: #f3f4f7; color: #596271; font-size: 11px; font-weight: 700; }
 .user-email { color: #69727d !important; }
 .edit-icon-button { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 1px solid #e7e9ed; border-radius: 8px; background: #fff; color: #69727d; }
 .edit-icon-button:hover { color: #c83f31; border-color: #eab6af; background: #fff7f5; }

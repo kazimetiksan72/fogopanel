@@ -51,7 +51,7 @@ export default function SignInForm() {
         </div>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="submit-button" type="submit" disabled={loading}>{loading ? 'Giriş yapılıyor…' : 'Giriş yap'}<span aria-hidden="true">→</span></button>
+      <button className="submit-button" type="submit" disabled={loading}>{loading ? 'Giriş yapılıyor…' : 'Giriş yap'}</button>
     </form>
   );
 }

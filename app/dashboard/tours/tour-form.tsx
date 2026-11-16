@@ -12,7 +12,7 @@ export default function TourForm({ agencies, lockedAgencyId }: { agencies: Agenc
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '', type: 'individual' });
+  const [form, setForm] = useState({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '' });
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +33,7 @@ export default function TourForm({ agencies, lockedAgencyId }: { agencies: Agenc
       const data = await response.json();
       if (!response.ok) { setError(data.error || 'Tur eklenemedi.'); return; }
       setOpen(false);
-      setForm({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '', type: 'individual' });
+      setForm({ name: '', agencyId: lockedAgencyId || '', startDate: '', endDate: '' });
       router.refresh();
     } catch { setError('Bağlantı kurulamadı. Lütfen tekrar deneyin.'); }
     finally { setSaving(false); }

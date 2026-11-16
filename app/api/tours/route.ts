@@ -22,15 +22,13 @@ export async function POST(request: NextRequest) {
   const input = body as Record<string, unknown>;
   const name = typeof input?.name === 'string' ? input.name.trim() : '';
   const agencyIdText = typeof input?.agencyId === 'string' ? input.agencyId.trim() : '';
-  const type = input?.type;
   const startDate = parseDate(input?.startDate);
   const endDate = parseDate(input?.endDate);
   if (agencyIdText !== '' && !ObjectId.isValid(agencyIdText)) {
     return NextResponse.json({ error: 'Geçersiz acente seçimi.' }, { status: 400 });
   }
-  if (name.length < 2 || name.length > 120 ||
-      !startDate || !endDate || endDate < startDate || (type !== 'corporate' && type !== 'individual')) {
-    return NextResponse.json({ error: 'Tur adı, tarihler ve tur tipini kontrol edin.' }, { status: 400 });
+  if (name.length < 2 || name.length > 120 || !startDate || !endDate || endDate < startDate) {
+    return NextResponse.json({ error: 'Tur adı ve tarihleri kontrol edin.' }, { status: 400 });
   }
   const requestedAgencyId = agencyIdText ? new ObjectId(agencyIdText) : null;
   if (viewer.agencyId && requestedAgencyId && !viewer.agencyId.equals(requestedAgencyId)) {
@@ -45,7 +43,7 @@ export async function POST(request: NextRequest) {
     }
     const tours = db.collection('tours');
     await tours.createIndex({ createdByAgencyId: 1, startDate: -1 });
-    const result = await tours.insertOne({ name, agencyId, createdByAgencyId: viewer.agencyId || null, startDate, endDate, type, createdAt: new Date(), updatedAt: new Date() });
+    const result = await tours.insertOne({ name, agencyId, createdByAgencyId: viewer.agencyId || null, startDate, endDate, createdAt: new Date(), updatedAt: new Date() });
     return NextResponse.json({ ok: true, id: result.insertedId.toString() }, { status: 201 });
   } catch (error) {
     console.error('Tur ekleme hatası:', error);
