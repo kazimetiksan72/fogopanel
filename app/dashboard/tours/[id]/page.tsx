@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { getDatabase } from '@/lib/mongodb';
 import { getViewer } from '@/lib/viewer';
 import TourDetailPlan from './tour-detail-plan';
+import TourDetailParticipants from './tour-detail-participants';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +14,6 @@ type Tour = {
   guideId?: ObjectId | null;
   startDate: Date;
   endDate: Date;
-  type: 'corporate' | 'individual';
   dayPlans?: { date: string; visits: { placeId: string; note?: string }[] }[];
 };
 
@@ -49,9 +49,9 @@ export default async function TourDetailPage({ params }: { params: Promise<{ id:
         <div><dt>Rehber</dt><dd>{guide ? `${guide.firstName} ${guide.lastName}`.trim() : 'Atanmadı'}</dd></div>
         <div><dt>Başlama Tarihi</dt><dd>{dateFormatter.format(tour.startDate)}</dd></div>
         <div><dt>Bitiş Tarihi</dt><dd>{dateFormatter.format(tour.endDate)}</dd></div>
-        <div><dt>Tur Tipi</dt><dd><span className="tour-type">{tour.type === 'corporate' ? 'Kurumsal' : 'Bireysel'}</span></dd></div>
       </dl>
     </section>
     <TourDetailPlan startDate={tour.startDate.toISOString().slice(0, 10)} endDate={tour.endDate.toISOString().slice(0, 10)} dayPlans={tour.dayPlans || []} />
+    <TourDetailParticipants tourId={id} />
   </div>;
 }

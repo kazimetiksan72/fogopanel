@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getViewer } from '@/lib/viewer';
+import { getViewer, SYSTEM_ADMIN_EMAIL } from '@/lib/viewer';
 import BrandLogo from '@/components/brand-logo';
 import SignOutButton from './signout-button';
 import SidebarNav from './sidebar-nav';
@@ -20,7 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <div className="admin-body">
         <aside className="admin-sidebar" aria-label="Ana menü">
           <div className="admin-sidebar-top">
-            <SidebarNav canManage={viewer.isAdmin || Boolean(viewer.agencyId)} />
+            <SidebarNav canManage={viewer.isAdmin || Boolean(viewer.agencyId)} canViewParticipants={viewer.isAdmin && viewer.email === SYSTEM_ADMIN_EMAIL} />
           </div>
           <div className="admin-sidebar-bottom">
             <div className="admin-account"><span className="admin-avatar">{viewer.email[0]?.toUpperCase()}</span><span className="admin-account-email" title={viewer.email}>{viewer.email}</span></div>

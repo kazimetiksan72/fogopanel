@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-export default function SidebarNav({ canManage }: { canManage: boolean }) {
+export default function SidebarNav({ canManage, canViewParticipants }: { canManage: boolean; canViewParticipants: boolean }) {
   const pathname = usePathname();
 
   return <nav className="admin-nav" aria-label="Panel bölümleri">
@@ -15,6 +15,10 @@ export default function SidebarNav({ canManage }: { canManage: boolean }) {
       <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
       <span>Profilim</span>
     </Link>
+    {canViewParticipants && <Link className={`admin-nav-link${pathname === '/dashboard/participants' || pathname.startsWith('/dashboard/participants/') ? ' active' : ''}`} href="/dashboard/participants" aria-current={pathname === '/dashboard/participants' || pathname.startsWith('/dashboard/participants/') ? 'page' : undefined}>
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.8a3.5 3.5 0 0 1 0 6.7M17 14a5.5 5.5 0 0 1 4.5 5.4"/></svg>
+      <span>Katılımcılar</span>
+    </Link>}
     {canManage && <><Link className={`admin-nav-link${pathname === '/dashboard/users' ? ' active' : ''}`} href="/dashboard/users" aria-current={pathname === '/dashboard/users' ? 'page' : undefined}>
       <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 1-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
       <span>Kullanıcılar</span>
