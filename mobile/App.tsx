@@ -9,7 +9,9 @@ import {
   AppState,
   Alert,
   Image,
+  Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -33,6 +35,18 @@ type Country = { flag: string; name: string; code: string };
 const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'https://fogopanel.vercel.app').replace(/\/$/, '');
 const ONESIGNAL_APP_ID = process.env.EXPO_PUBLIC_ONESIGNAL_APP_ID || 'ed2d9b4e-598e-423a-a2f8-733a4728cbab';
 const SESSION_KEY = 'fogo.mobile.session';
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Sunucu yanıt vermedi. Ağ bağlantısını kontrol edip tekrar deneyin.');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 const countries: Country[] = [
   { flag: '🇹🇷', name: 'Türkiye', code: '+90' }, { flag: '🇺🇸', name: 'ABD', code: '+1' },
   { flag: '🇬🇧', name: 'Birleşik Krallık', code: '+44' }, { flag: '🇩🇪', name: 'Almanya', code: '+49' },
@@ -95,7 +109,7 @@ function formatTourDates(tour: Pick<TourSummary, 'startDate' | 'endDate'>) {
 }
 
 async function requestCode(phone: string, role: Role) {
-  const response = await fetch(`${API_URL}/api/mobile/auth/request-code`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/mobile/auth/request-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ phone, role }),
@@ -106,10 +120,11 @@ async function requestCode(phone: string, role: Role) {
 }
 
 async function verifyCode(phone: string, role: Role, code: string, fullName?: string) {
-  const response = await fetch(`${API_URL}/api/mobile/auth/verify`, {
+  const normalizedName = typeof fullName === 'string' ? fullName.trim() : '';
+  const response = await fetchWithTimeout(`${API_URL}/api/mobile/auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone, role, code, ...(fullName ? { fullName } : {}) }),
+    body: JSON.stringify({ phone, role, code, ...(normalizedName ? { fullName: normalizedName } : {}) }),
   });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Kod doğrulanamadı.');
@@ -117,21 +132,21 @@ async function verifyCode(phone: string, role: Role, code: string, fullName?: st
 }
 
 async function getMobileTours(token: string) {
-  const response = await fetch(`${API_URL}/api/mobile/tours`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+  const response = await fetchWithTimeout(`${API_URL}/api/mobile/tours`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Turlar yüklenemedi.');
   return result.tours as TourSummary[];
 }
 
 async function getGuideTour(token: string, id: string) {
-  const response = await fetch(`${API_URL}/api/mobile/tours/${id}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+  const response = await fetchWithTimeout(`${API_URL}/api/mobile/tours/${id}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Tur ayrıntıları yüklenemedi.');
   return result.tour as TourDetail;
 }
 
 async function refreshSession(token: string) {
-  const response = await fetch(`${API_URL}/api/mobile/auth/refresh`, {
+  const response = await fetchWithTimeout(`${API_URL}/api/mobile/auth/refresh`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -146,7 +161,13 @@ async function refreshSession(token: string) {
 
 export default function App() {
   const [role, setRole] = useState<Role>('participant');
-  const [step, setStep] = useState<Step>('restoring');
+  const [stepStack, setStepStack] = useState<Step[]>(['restoring']);
+  const step = stepStack[stepStack.length - 1];
+  const setStep = (next: Step) => setStepStack((current) => {
+    if (next === 'phone' || next === 'welcome' || next === 'restoring') return [next];
+    if (current[current.length - 1] === next) return current;
+    return [...current, next];
+  });
   const [phone, setPhone] = useState('');
   const [profileName, setProfileName] = useState('');
   const [userName, setUserName] = useState('');
@@ -162,6 +183,7 @@ export default function App() {
   const [qrVisible, setQrVisible] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const sessionRef = useRef<MobileSession | null>(null);
+  const codeInputRef = useRef<TextInput>(null);
   const refreshInFlight = useRef(false);
   const scanInFlight = useRef(false);
 
@@ -206,8 +228,8 @@ export default function App() {
             setCountryCode(phoneInfo.code);
             setPhone(phoneInfo.phone);
             setScreen('home');
-            setTours(await getMobileTours(session.token).catch(() => []));
             setStep('welcome');
+            void getMobileTours(session.token).then(setTours).catch(() => setTours([]));
             void connectPushUser(session);
           }
         } catch (error) {
@@ -293,7 +315,17 @@ export default function App() {
     }
   }
 
+  async function openLegalPage(path: string) {
+    try {
+      await Linking.openURL(`https://fogopanel.vercel.app/${path}`);
+    } catch {
+      Alert.alert('Sayfa açılamadı', 'Yasal bilgilendirme sayfası şu anda açılamıyor.');
+    }
+  }
+
   async function signIn(fullName?: string) {
+    Keyboard.dismiss();
+    codeInputRef.current?.blur();
     if (code.length !== 6) {
       Alert.alert('Doğrulama kodu', '6 haneli kodu girin.');
       return;
@@ -410,8 +442,7 @@ export default function App() {
           </View>
 
           <View style={styles.hero}>
-            {(step === 'code' || step === 'profile' || (step === 'phone' && isGuide)) && <Text style={styles.title}>{step === 'code' ? 'Telefonunu\ndoğrula.' : step === 'profile' ? 'Seni tanıyalım.' : 'Rehber girişi'}</Text>}
-            {step === 'code' && <Text style={styles.subtitle}>{countryCode} {phone} numarası için 6 haneli kodu gir.</Text>}
+            {(step === 'code' || (step === 'phone' && isGuide)) && <Text style={[styles.title, step === 'code' && styles.codeTitle]}>{step === 'code' ? 'Telefonunu\ndoğrula.' : 'Rehber girişi'}</Text>}
             {step === 'profile' && <Text style={styles.subtitle}>Tur listende görünmesi için ad soyad bilgini ekle.</Text>}
           </View>
 
@@ -462,7 +493,6 @@ export default function App() {
             <View style={styles.formCard}>
               {step === 'phone' ? (
                 <>
-                  <Text style={styles.label}>TELEFON NUMARAN</Text>
                   <View style={styles.phoneField}>
                     <Pressable style={styles.countryPickerButton} onPress={() => setCountryPickerOpen(true)} accessibilityRole="button" accessibilityLabel={`Ülke kodu ${countryCode}, ülke seç`}>
                       <Text style={styles.countryFlag}>{countries.find((item) => item.code === countryCode)?.flag || '🌐'}</Text>
@@ -479,8 +509,6 @@ export default function App() {
                       style={styles.input}
                       accessibilityLabel="Telefon numarası"
                       maxLength={countryCode === '+90' ? 11 : 24}
-                      returnKeyType="done"
-                      onSubmitEditing={sendCode}
                     />
                   </View>
                   <Modal visible={countryPickerOpen} transparent animationType="fade" onRequestClose={() => setCountryPickerOpen(false)}>
@@ -499,15 +527,23 @@ export default function App() {
                   </Modal>
                   {restoreError ? <Text style={styles.helper}>{restoreError}</Text> : <Text style={styles.helper}>Giriş için telefon numaranı gir.</Text>}
                   <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={sendCode}>
-                    {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Kod gönder <Text style={styles.arrow}>→</Text></Text>}
+                    {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Giriş Yap <Text style={styles.arrow}>→</Text></Text>}
                   </Pressable>
                 </>
               ) : step === 'code' ? (
                 <>
                   <Text style={styles.label}>6 HANELİ KOD</Text>
                   <TextInput
+                    ref={codeInputRef}
                     value={code}
-                    onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))}
+                    onChangeText={(value) => {
+                      const nextCode = value.replace(/\D/g, '').slice(0, 6);
+                      setCode(nextCode);
+                      if (nextCode.length === 6) {
+                        Keyboard.dismiss();
+                        codeInputRef.current?.blur();
+                      }
+                    }}
                     keyboardType="number-pad"
                     placeholder="_  _  _  _  _  _"
                     placeholderTextColor="#b9bdb7"
@@ -518,7 +554,7 @@ export default function App() {
                   />
                   <Text style={styles.helper}>Geçici doğrulama kodu: 123456</Text>
                   <Text style={styles.helper}>Kod gelmedi mi? <Text style={styles.resend} onPress={sendCode}>Tekrar gönder</Text></Text>
-                  <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={signIn}>
+                  <Pressable disabled={busy} style={[styles.primaryButton, busy && styles.disabled]} onPress={() => { void signIn(); }}>
                     {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Giriş yap <Text style={styles.arrow}>→</Text></Text>}
                   </Pressable>
                   <Pressable style={styles.backButton} onPress={() => { setStep('phone'); setCode(''); }}><Text style={styles.backText}>← Telefon numarasını değiştir</Text></Pressable>
@@ -548,7 +584,9 @@ export default function App() {
             </Pressable>
           </Modal>
 
-          {step !== 'welcome' && step !== 'restoring' && <Text style={styles.privacy}>Devam ederek <Text style={styles.privacyLink}>Kullanım Koşulları</Text> ve <Text style={styles.privacyLink}>Gizlilik Politikası</Text>’nı kabul etmiş olursun.</Text>}
+          {step !== 'welcome' && step !== 'restoring' && <Text style={styles.privacy}>
+            FOGO, telefon numaranı giriş ve tur hizmetlerini sunmak için işler; devam ederek <Text accessibilityRole="link" style={styles.privacyLink} onPress={() => { void openLegalPage('kullanim-kosullari'); }}>Kullanım Koşulları</Text>’nı kabul etmiş, <Text accessibilityRole="link" style={styles.privacyLink} onPress={() => { void openLegalPage('gizlilik-politikasi'); }}>Gizlilik Politikası</Text> ve <Text accessibilityRole="link" style={styles.privacyLink} onPress={() => { void openLegalPage('kvkk-bildirimi'); }}>KVKK Bildirimi</Text> hakkında bilgilendirilmiş olursun.
+          </Text>}
           <View style={styles.footer}><View style={styles.footerLine} /><Text style={styles.footerText}>GÜZEL YOLCULUKLAR BURADA BAŞLAR</Text><View style={styles.footerLine} /></View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -589,6 +627,7 @@ const styles = StyleSheet.create({
   eyebrowDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#db5a35' },
   eyebrowText: { color: '#777f77', fontSize: 10, letterSpacing: 2, fontWeight: '700' },
   title: { color: '#26322d', fontSize: 43, lineHeight: 48, letterSpacing: -1.9, fontWeight: '700' },
+  codeTitle: { fontSize: 34, lineHeight: 39, letterSpacing: -1.2 },
   subtitle: { color: '#747b75', fontSize: 15, lineHeight: 23, marginTop: 16, maxWidth: 310 },
   phoneSubtitle: { marginTop: 0 },
   formCard: { padding: 22, borderRadius: 20, backgroundColor: '#fffefa', borderWidth: 1, borderColor: '#e9e8e1', shadowColor: '#314039', shadowOpacity: 0.04, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 2 },
